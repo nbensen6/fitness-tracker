@@ -1,156 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Text, View } from '@/components/Themed';
+import { StyleSheet, ScrollView, TouchableOpacity, Alert, View as RNView } from 'react-native';
+import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { setUserWorkoutPlan, getUserWorkoutPlan, updateUserWorkoutPlan } from '@/services/firestore';
-import { WorkoutPlan, UserWorkoutPlan, WorkoutPlanDay } from '@/types';
+import { WorkoutPlan, UserWorkoutPlan } from '@/types';
+import { getAllWorkoutPlans, getWorkoutPlansByDifficulty } from '@/services/workoutDatabase';
+import { LinearGradient } from 'expo-linear-gradient';
 
-// Pre-built workout plans
-const workoutPlans: WorkoutPlan[] = [
-  {
-    id: 'ppl',
-    name: 'Push/Pull/Legs',
-    description: 'Classic 6-day split targeting each muscle group twice per week',
-    daysPerWeek: 6,
-    difficulty: 'intermediate',
-    days: [
-      {
-        dayNumber: 1,
-        name: 'Push Day',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'bench-press', name: 'Bench Press', category: 'chest', equipment: 'Barbell' }, targetSets: 4, targetReps: '8-10' },
-          { exercise: { id: 'overhead-press', name: 'Overhead Press', category: 'shoulders', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'incline-db', name: 'Incline Dumbbell Press', category: 'chest', equipment: 'Dumbbell' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'lateral-raise', name: 'Lateral Raises', category: 'shoulders', equipment: 'Dumbbell' }, targetSets: 3, targetReps: '12-15' },
-          { exercise: { id: 'tricep-pushdown', name: 'Tricep Pushdown', category: 'arms', equipment: 'Cable' }, targetSets: 3, targetReps: '10-12' },
-        ],
-      },
-      {
-        dayNumber: 2,
-        name: 'Pull Day',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'deadlift', name: 'Deadlift', category: 'back', equipment: 'Barbell' }, targetSets: 4, targetReps: '5-6' },
-          { exercise: { id: 'pull-up', name: 'Pull Ups', category: 'back', equipment: 'Bodyweight' }, targetSets: 3, targetReps: '6-10' },
-          { exercise: { id: 'barbell-row', name: 'Barbell Row', category: 'back', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'face-pull', name: 'Face Pulls', category: 'back', equipment: 'Cable' }, targetSets: 3, targetReps: '15-20' },
-          { exercise: { id: 'dumbbell-curl', name: 'Dumbbell Curls', category: 'arms', equipment: 'Dumbbell' }, targetSets: 3, targetReps: '10-12' },
-        ],
-      },
-      {
-        dayNumber: 3,
-        name: 'Legs Day',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'squat', name: 'Squat', category: 'legs', equipment: 'Barbell' }, targetSets: 4, targetReps: '6-8' },
-          { exercise: { id: 'leg-press', name: 'Leg Press', category: 'legs', equipment: 'Machine' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'rdl', name: 'Romanian Deadlift', category: 'legs', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'leg-curl', name: 'Leg Curl', category: 'legs', equipment: 'Machine' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'calf-raise', name: 'Calf Raises', category: 'legs', equipment: 'Machine' }, targetSets: 4, targetReps: '12-15' },
-        ],
-      },
-      { dayNumber: 4, name: 'Push Day', isRestDay: false, exercises: [] },
-      { dayNumber: 5, name: 'Pull Day', isRestDay: false, exercises: [] },
-      { dayNumber: 6, name: 'Legs Day', isRestDay: false, exercises: [] },
-      { dayNumber: 7, name: 'Rest Day', isRestDay: true, exercises: [] },
-    ],
-  },
-  {
-    id: 'full-body',
-    name: 'Full Body 3x/Week',
-    description: 'Hit every muscle group 3 times per week. Great for beginners.',
-    daysPerWeek: 3,
-    difficulty: 'beginner',
-    days: [
-      {
-        dayNumber: 1,
-        name: 'Full Body A',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'squat', name: 'Squat', category: 'legs', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'bench-press', name: 'Bench Press', category: 'chest', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'barbell-row', name: 'Barbell Row', category: 'back', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'overhead-press', name: 'Overhead Press', category: 'shoulders', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'plank', name: 'Plank', category: 'core', equipment: 'Bodyweight' }, targetSets: 3, targetReps: '30-60s' },
-        ],
-      },
-      { dayNumber: 2, name: 'Rest', isRestDay: true, exercises: [] },
-      {
-        dayNumber: 3,
-        name: 'Full Body B',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'deadlift', name: 'Deadlift', category: 'back', equipment: 'Barbell' }, targetSets: 3, targetReps: '5-6' },
-          { exercise: { id: 'incline-db', name: 'Incline Dumbbell Press', category: 'chest', equipment: 'Dumbbell' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'lat-pulldown', name: 'Lat Pulldown', category: 'back', equipment: 'Cable' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'dumbbell-curl', name: 'Dumbbell Curls', category: 'arms', equipment: 'Dumbbell' }, targetSets: 2, targetReps: '10-12' },
-          { exercise: { id: 'tricep-dip', name: 'Tricep Dips', category: 'arms', equipment: 'Bodyweight' }, targetSets: 2, targetReps: '8-12' },
-        ],
-      },
-      { dayNumber: 4, name: 'Rest', isRestDay: true, exercises: [] },
-      {
-        dayNumber: 5,
-        name: 'Full Body C',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'leg-press', name: 'Leg Press', category: 'legs', equipment: 'Machine' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'push-up', name: 'Push Ups', category: 'chest', equipment: 'Bodyweight' }, targetSets: 3, targetReps: 'AMRAP' },
-          { exercise: { id: 'pull-up', name: 'Pull Ups', category: 'back', equipment: 'Bodyweight' }, targetSets: 3, targetReps: 'AMRAP' },
-          { exercise: { id: 'lateral-raise', name: 'Lateral Raises', category: 'shoulders', equipment: 'Dumbbell' }, targetSets: 3, targetReps: '12-15' },
-          { exercise: { id: 'leg-curl', name: 'Leg Curls', category: 'legs', equipment: 'Machine' }, targetSets: 3, targetReps: '10-12' },
-        ],
-      },
-      { dayNumber: 6, name: 'Rest', isRestDay: true, exercises: [] },
-      { dayNumber: 7, name: 'Rest', isRestDay: true, exercises: [] },
-    ],
-  },
-  {
-    id: 'upper-lower',
-    name: 'Upper/Lower Split',
-    description: '4-day split alternating between upper and lower body',
-    daysPerWeek: 4,
-    difficulty: 'intermediate',
-    days: [
-      {
-        dayNumber: 1,
-        name: 'Upper Body A',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'bench-press', name: 'Bench Press', category: 'chest', equipment: 'Barbell' }, targetSets: 4, targetReps: '6-8' },
-          { exercise: { id: 'barbell-row', name: 'Barbell Row', category: 'back', equipment: 'Barbell' }, targetSets: 4, targetReps: '6-8' },
-          { exercise: { id: 'overhead-press', name: 'Overhead Press', category: 'shoulders', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'pull-up', name: 'Pull Ups', category: 'back', equipment: 'Bodyweight' }, targetSets: 3, targetReps: '6-10' },
-          { exercise: { id: 'dumbbell-curl', name: 'Dumbbell Curls', category: 'arms', equipment: 'Dumbbell' }, targetSets: 2, targetReps: '10-12' },
-          { exercise: { id: 'tricep-pushdown', name: 'Tricep Pushdown', category: 'arms', equipment: 'Cable' }, targetSets: 2, targetReps: '10-12' },
-        ],
-      },
-      {
-        dayNumber: 2,
-        name: 'Lower Body A',
-        isRestDay: false,
-        exercises: [
-          { exercise: { id: 'squat', name: 'Squat', category: 'legs', equipment: 'Barbell' }, targetSets: 4, targetReps: '6-8' },
-          { exercise: { id: 'rdl', name: 'Romanian Deadlift', category: 'legs', equipment: 'Barbell' }, targetSets: 3, targetReps: '8-10' },
-          { exercise: { id: 'leg-press', name: 'Leg Press', category: 'legs', equipment: 'Machine' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'leg-curl', name: 'Leg Curl', category: 'legs', equipment: 'Machine' }, targetSets: 3, targetReps: '10-12' },
-          { exercise: { id: 'calf-raise', name: 'Calf Raises', category: 'legs', equipment: 'Machine' }, targetSets: 4, targetReps: '12-15' },
-        ],
-      },
-      { dayNumber: 3, name: 'Rest', isRestDay: true, exercises: [] },
-      { dayNumber: 4, name: 'Upper Body B', isRestDay: false, exercises: [] },
-      { dayNumber: 5, name: 'Lower Body B', isRestDay: false, exercises: [] },
-      { dayNumber: 6, name: 'Rest', isRestDay: true, exercises: [] },
-      { dayNumber: 7, name: 'Rest', isRestDay: true, exercises: [] },
-    ],
-  },
-];
+type DifficultyFilter = 'all' | 'beginner' | 'intermediate' | 'advanced';
 
 export default function PlansScreen() {
   const { userId, isSignedIn } = useAuth();
   const [activePlan, setActivePlan] = useState<UserWorkoutPlan | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<WorkoutPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<DifficultyFilter>('all');
+
+  const workoutPlans = filter === 'all'
+    ? getAllWorkoutPlans()
+    : getWorkoutPlansByDifficulty(filter);
 
   useEffect(() => {
     if (userId) {
@@ -227,7 +95,6 @@ export default function PlansScreen() {
         text: 'Yes',
         style: 'destructive',
         onPress: async () => {
-          // Note: In a real app, you'd delete or archive the plan
           setActivePlan(null);
         },
       },
@@ -236,9 +103,11 @@ export default function PlansScreen() {
 
   if (!isSignedIn) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.message}>Please sign in to access workout plans</Text>
-      </View>
+      <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
+        <RNView style={styles.messageContainer}>
+          <Text style={styles.message}>Please sign in to access workout plans</Text>
+        </RNView>
+      </LinearGradient>
     );
   }
 
@@ -249,170 +118,227 @@ export default function PlansScreen() {
     );
 
     return (
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.container}>
-          <View style={styles.activePlanHeader}>
-            <Text style={styles.activePlanName}>{activePlan.plan.name}</Text>
-            <Text style={styles.activePlanProgress}>
-              Week {Math.ceil(activePlan.currentDay / 7)} | Day {activePlan.currentDay}
-            </Text>
-          </View>
-
-          <View style={styles.todayCard}>
-            <Text style={styles.todayTitle}>Today's Workout</Text>
-            <Text style={styles.todayName}>{currentDayPlan?.name}</Text>
-
-            {currentDayPlan?.isRestDay ? (
-              <View style={styles.restDay}>
-                <Text style={styles.restDayText}>Rest Day</Text>
-                <Text style={styles.restDaySubtext}>
-                  Recovery is important! Take it easy today.
-                </Text>
-              </View>
-            ) : (
-              <>
-                {currentDayPlan?.exercises.map((ex, index) => (
-                  <View key={index} style={styles.exerciseItem}>
-                    <Text style={styles.exerciseItemName}>{ex.exercise.name}</Text>
-                    <Text style={styles.exerciseItemSets}>
-                      {ex.targetSets} sets x {ex.targetReps}
-                    </Text>
-                  </View>
-                ))}
-              </>
-            )}
-
-            <TouchableOpacity style={styles.completeButton} onPress={completeDay}>
-              <Text style={styles.completeButtonText}>
-                {currentDayPlan?.isRestDay ? 'Start Next Day' : 'Complete Workout'}
+      <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <RNView style={styles.container}>
+            <RNView style={styles.activePlanHeader}>
+              <Text style={styles.activePlanName}>{activePlan.plan.name}</Text>
+              <Text style={styles.activePlanProgress}>
+                Week {Math.ceil(activePlan.currentDay / 7)} | Day {activePlan.currentDay}
               </Text>
-            </TouchableOpacity>
-          </View>
+            </RNView>
 
-          <View style={styles.weekOverview}>
-            <Text style={styles.weekTitle}>This Week</Text>
-            <View style={styles.weekDays}>
-              {activePlan.plan.days.slice(0, 7).map((day) => (
-                <View
-                  key={day.dayNumber}
-                  style={[
-                    styles.weekDay,
-                    activePlan.completedDays.includes(day.dayNumber) && styles.weekDayCompleted,
-                    day.dayNumber === activePlan.currentDay && styles.weekDayCurrent,
-                  ]}
-                >
-                  <Text
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.todayCard}>
+              <Text style={styles.todayTitle}>Today's Workout</Text>
+              <Text style={styles.todayName}>{currentDayPlan?.name}</Text>
+
+              {currentDayPlan?.isRestDay ? (
+                <RNView style={styles.restDay}>
+                  <Text style={styles.restDayText}>Rest Day</Text>
+                  <Text style={styles.restDaySubtext}>
+                    Recovery is important! Take it easy today.
+                  </Text>
+                </RNView>
+              ) : (
+                <>
+                  {currentDayPlan?.exercises.map((ex, index) => (
+                    <RNView key={index} style={styles.exerciseItem}>
+                      <Text style={styles.exerciseItemName}>{ex.exercise.name}</Text>
+                      <Text style={styles.exerciseItemSets}>
+                        {ex.targetSets} x {ex.targetReps}
+                      </Text>
+                    </RNView>
+                  ))}
+                </>
+              )}
+
+              <TouchableOpacity style={styles.completeButton} onPress={completeDay}>
+                <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.completeGradient}>
+                  <Text style={styles.completeButtonText}>
+                    {currentDayPlan?.isRestDay ? 'Start Next Day' : 'Complete Workout'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </LinearGradient>
+
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.weekOverview}>
+              <Text style={styles.weekTitle}>This Week</Text>
+              <RNView style={styles.weekDays}>
+                {activePlan.plan.days.slice(0, 7).map((day) => (
+                  <RNView
+                    key={day.dayNumber}
                     style={[
-                      styles.weekDayText,
-                      activePlan.completedDays.includes(day.dayNumber) && styles.weekDayTextCompleted,
+                      styles.weekDay,
+                      activePlan.completedDays.includes(day.dayNumber) && styles.weekDayCompleted,
+                      day.dayNumber === activePlan.currentDay && styles.weekDayCurrent,
                     ]}
                   >
-                    {day.dayNumber}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
+                    <Text
+                      style={[
+                        styles.weekDayText,
+                        activePlan.completedDays.includes(day.dayNumber) && styles.weekDayTextCompleted,
+                      ]}
+                    >
+                      {day.dayNumber}
+                    </Text>
+                  </RNView>
+                ))}
+              </RNView>
+            </LinearGradient>
 
-          <TouchableOpacity style={styles.cancelPlanButton} onPress={cancelPlan}>
-            <Text style={styles.cancelPlanText}>Cancel Plan</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+            <TouchableOpacity style={styles.cancelPlanButton} onPress={cancelPlan}>
+              <Text style={styles.cancelPlanText}>Cancel Plan</Text>
+            </TouchableOpacity>
+          </RNView>
+        </ScrollView>
+      </LinearGradient>
     );
   }
 
   // Show plan selection
   return (
-    <ScrollView style={styles.scrollView}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Choose a Workout Plan</Text>
-        <Text style={styles.subtitle}>
-          Select a plan that fits your schedule and goals
-        </Text>
+    <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <RNView style={styles.container}>
+          <Text style={styles.title}>Workout Plans</Text>
+          <Text style={styles.subtitle}>
+            Select a plan that fits your schedule and goals
+          </Text>
 
-        {workoutPlans.map((plan) => (
-          <TouchableOpacity
-            key={plan.id}
-            style={styles.planCard}
-            onPress={() => setSelectedPlan(plan)}
-          >
-            <View style={styles.planHeader}>
-              <Text style={styles.planName}>{plan.name}</Text>
-              <View style={[styles.difficultyBadge, styles[`difficulty_${plan.difficulty}`]]}>
-                <Text style={styles.difficultyText}>{plan.difficulty}</Text>
-              </View>
-            </View>
-            <Text style={styles.planDescription}>{plan.description}</Text>
-            <Text style={styles.planDays}>{plan.daysPerWeek} days per week</Text>
-          </TouchableOpacity>
-        ))}
-
-        {/* Plan Details Modal */}
-        {selectedPlan && (
-          <View style={styles.planDetailsModal}>
-            <Text style={styles.modalTitle}>{selectedPlan.name}</Text>
-            <Text style={styles.modalDescription}>{selectedPlan.description}</Text>
-
-            <Text style={styles.scheduleTitle}>Weekly Schedule</Text>
-            {selectedPlan.days.map((day) => (
-              <View key={day.dayNumber} style={styles.scheduleDay}>
-                <Text style={styles.scheduleDayNumber}>Day {day.dayNumber}</Text>
-                <Text style={styles.scheduleDayName}>
-                  {day.isRestDay ? 'Rest' : day.name}
+          {/* Filter tabs */}
+          <RNView style={styles.filterContainer}>
+            {(['all', 'beginner', 'intermediate', 'advanced'] as DifficultyFilter[]).map((level) => (
+              <TouchableOpacity
+                key={level}
+                style={[styles.filterTab, filter === level && styles.filterTabActive]}
+                onPress={() => setFilter(level)}
+              >
+                <Text style={[styles.filterText, filter === level && styles.filterTextActive]}>
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
+          </RNView>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setSelectedPlan(null)}
-              >
-                <Text style={styles.modalCancelText}>Back</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalStartButton}
-                onPress={() => startPlan(selectedPlan)}
-              >
-                <Text style={styles.modalStartText}>Start Plan</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+          {workoutPlans.map((plan) => (
+            <TouchableOpacity
+              key={plan.id}
+              onPress={() => setSelectedPlan(plan)}
+            >
+              <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.planCard}>
+                <RNView style={styles.planHeader}>
+                  <Text style={styles.planName}>{plan.name}</Text>
+                  <RNView style={[styles.difficultyBadge, styles[`difficulty_${plan.difficulty}`]]}>
+                    <Text style={styles.difficultyText}>{plan.difficulty}</Text>
+                  </RNView>
+                </RNView>
+                <Text style={styles.planDescription}>{plan.description}</Text>
+                <Text style={styles.planDays}>{plan.daysPerWeek} days per week</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
+
+          {/* Plan Details Modal */}
+          {selectedPlan && (
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.planDetailsModal}>
+              <Text style={styles.modalTitle}>{selectedPlan.name}</Text>
+              <Text style={styles.modalDescription}>{selectedPlan.description}</Text>
+
+              <Text style={styles.scheduleTitle}>Weekly Schedule</Text>
+              {selectedPlan.days.map((day) => (
+                <RNView key={day.dayNumber} style={styles.scheduleDay}>
+                  <Text style={styles.scheduleDayNumber}>Day {day.dayNumber}</Text>
+                  <Text style={styles.scheduleDayName}>
+                    {day.isRestDay ? 'Rest' : day.name}
+                  </Text>
+                </RNView>
+              ))}
+
+              <RNView style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setSelectedPlan(null)}
+                >
+                  <Text style={styles.modalCancelText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalStartButton}
+                  onPress={() => startPlan(selectedPlan)}
+                >
+                  <LinearGradient colors={['#e94560', '#ff6b6b']} style={styles.startGradient}>
+                    <Text style={styles.modalStartText}>Start Plan</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </RNView>
+            </LinearGradient>
+          )}
+        </RNView>
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
   container: {
     flex: 1,
-    padding: 16,
+    padding: 20,
+    paddingTop: 40,
+  },
+  messageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   message: {
     textAlign: 'center',
-    marginTop: 40,
     fontSize: 16,
+    color: '#94a3b8',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     marginBottom: 8,
-    color: '#333',
+    color: '#fff',
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
     marginBottom: 20,
   },
+  filterContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    backgroundColor: '#2d2d44',
+    borderRadius: 10,
+    padding: 4,
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  filterTabActive: {
+    backgroundColor: '#e94560',
+  },
+  filterText: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   planCard: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 12,
   },
   planHeader: {
@@ -424,129 +350,131 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#fff',
+    flex: 1,
   },
   difficultyBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   difficulty_beginner: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#22c55e',
   },
   difficulty_intermediate: {
-    backgroundColor: '#FF9800',
+    backgroundColor: '#f59e0b',
   },
   difficulty_advanced: {
-    backgroundColor: '#f44336',
+    backgroundColor: '#ef4444',
   },
   difficultyText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
   planDescription: {
     fontSize: 14,
-    color: '#666',
+    color: '#94a3b8',
     marginBottom: 8,
   },
   planDays: {
     fontSize: 12,
-    color: '#999',
+    color: '#64748b',
   },
   planDetailsModal: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 20,
     marginTop: 20,
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginBottom: 8,
-    color: '#333',
+    color: '#fff',
   },
   modalDescription: {
     fontSize: 14,
-    color: '#666',
+    color: '#94a3b8',
     marginBottom: 16,
   },
   scheduleTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
-    color: '#333',
+    color: '#fff',
   },
   scheduleDay: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#374151',
   },
   scheduleDayNumber: {
     fontWeight: '600',
-    color: '#333',
+    color: '#fff',
   },
   scheduleDayName: {
-    color: '#666',
+    color: '#94a3b8',
   },
   modalButtons: {
     flexDirection: 'row',
     marginTop: 20,
+    gap: 12,
   },
   modalCancelButton: {
     flex: 1,
     padding: 14,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
-    marginRight: 8,
+    borderColor: '#374151',
+    alignItems: 'center',
   },
   modalCancelText: {
-    textAlign: 'center',
-    color: '#666',
+    color: '#94a3b8',
+    fontWeight: '600',
   },
   modalStartButton: {
     flex: 2,
-    backgroundColor: '#4CAF50',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  startGradient: {
     padding: 14,
-    borderRadius: 8,
+    alignItems: 'center',
   },
   modalStartText: {
     color: 'white',
-    textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   activePlanHeader: {
     marginBottom: 20,
   },
   activePlanName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#fff',
   },
   activePlanProgress: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
     marginTop: 4,
   },
   todayCard: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   todayTitle: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
     marginBottom: 4,
   },
   todayName: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 16,
   },
   restDay: {
@@ -555,49 +483,56 @@ const styles = StyleSheet.create({
   },
   restDayText: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4CAF50',
+    fontWeight: '700',
+    color: '#4ade80',
   },
   restDaySubtext: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
     marginTop: 8,
+    textAlign: 'center',
   },
   exerciseItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: '#374151',
   },
   exerciseItemName: {
     fontSize: 16,
-    color: '#333',
+    color: '#fff',
+    flex: 1,
   },
   exerciseItemSets: {
     fontSize: 14,
-    color: '#666',
+    color: '#4ade80',
+    fontWeight: '600',
   },
   completeButton: {
-    backgroundColor: '#4CAF50',
-    padding: 16,
-    borderRadius: 8,
+    borderRadius: 10,
+    overflow: 'hidden',
     marginTop: 20,
+  },
+  completeGradient: {
+    padding: 16,
+    alignItems: 'center',
   },
   completeButtonText: {
     color: 'white',
-    textAlign: 'center',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   weekOverview: {
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
   },
   weekTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
-    color: '#333',
+    color: '#fff',
   },
   weekDays: {
     flexDirection: 'row',
@@ -607,20 +542,20 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1a1a2e',
     alignItems: 'center',
     justifyContent: 'center',
   },
   weekDayCompleted: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#22c55e',
   },
   weekDayCurrent: {
     borderWidth: 2,
-    borderColor: '#007AFF',
+    borderColor: '#e94560',
   },
   weekDayText: {
     fontWeight: '600',
-    color: '#333',
+    color: '#64748b',
   },
   weekDayTextCompleted: {
     color: 'white',
@@ -630,6 +565,6 @@ const styles = StyleSheet.create({
   },
   cancelPlanText: {
     textAlign: 'center',
-    color: '#f44336',
+    color: '#ef4444',
   },
 });

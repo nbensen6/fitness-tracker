@@ -1,10 +1,36 @@
-// User profile
+// User profile with goals
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  // Basic stats
+  currentWeight?: number; // in lbs
+  heightFeet?: number;
+  heightInches?: number;
+  age?: number;
+  gender?: 'male' | 'female';
+  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+  // Goals
   calorieGoal: number;
+  goalWeight?: number; // in lbs
+  goalWeeks?: number; // weeks to reach goal
+  goalType?: 'lose' | 'maintain' | 'gain';
+  // Optional macros (in grams)
+  proteinGoal?: number;
+  carbsGoal?: number;
+  fatGoal?: number;
+  // Timestamps
   createdAt: Date;
+  updatedAt?: Date;
+}
+
+// Calorie calculation result
+export interface CalorieCalculation {
+  bmr: number; // Base Metabolic Rate
+  tdee: number; // Total Daily Energy Expenditure
+  targetCalories: number; // Recommended daily calories for goal
+  deficit: number; // Daily calorie deficit/surplus
+  weeklyChange: number; // Expected weekly weight change in lbs
 }
 
 // Calorie tracking
@@ -34,6 +60,9 @@ export interface Exercise {
   name: string;
   category: 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core' | 'cardio';
   equipment: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  instructions?: string;
+  muscleGroups?: string[];
 }
 
 export interface ExerciseSet {

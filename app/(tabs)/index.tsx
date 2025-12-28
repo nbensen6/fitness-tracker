@@ -7,6 +7,7 @@ import { getMealsByDate, getWorkoutsByDate } from '@/services/firestore';
 import { Workout } from '@/types';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import AccountMenu from '@/components/AccountMenu';
 
 export default function DashboardScreen() {
   const { userId, userProfile, isSignedIn } = useAuth();
@@ -14,6 +15,7 @@ export default function DashboardScreen() {
   const [todayCalories, setTodayCalories] = useState(0);
   const [todayWorkouts, setTodayWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const calorieGoal = userProfile?.calorieGoal || 2000;
@@ -83,7 +85,7 @@ export default function DashboardScreen() {
               <Text style={styles.greeting}>Hey, {userProfile?.displayName?.split(' ')[0] || 'Champ'}!</Text>
               <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
             </RNView>
-            <TouchableOpacity style={styles.accountButton} onPress={handleSignOut}>
+            <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccountMenu(true)}>
               <RNView style={styles.accountCircle}>
                 <Text style={styles.accountInitial}>
                   {userProfile?.displayName?.charAt(0)?.toUpperCase() || 'U'}
@@ -163,6 +165,13 @@ export default function DashboardScreen() {
           </LinearGradient>
         </RNView>
       </ScrollView>
+
+      <AccountMenu
+        visible={showAccountMenu}
+        onClose={() => setShowAccountMenu(false)}
+        onSignOut={handleSignOut}
+        userInitial={userProfile?.displayName?.charAt(0)?.toUpperCase() || 'U'}
+      />
     </LinearGradient>
   );
 }

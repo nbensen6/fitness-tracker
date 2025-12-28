@@ -9,6 +9,7 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   isSignedIn: boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,40 +20,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const loadOrCreateProfile = async () => {
+    if (!userId || !user) {
+      setUserProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Check if user profile exists in Firestore
+      const docRef = doc(db, 'users', userId);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        setUserProfile(docSnap.data() as UserProfile);
+      } else {
+        // Create new profile for first-time users
+        const newProfile: UserProfile = {
+          uid: userId,
+          email: user.emailAddresses[0]?.emailAddress || '',
+          displayName: user.firstName || user.username || 'User',
+          calorieGoal: 2000,
+          createdAt: new Date(),
+        };
+        await setDoc(docRef, newProfile);
+        setUserProfile(newProfile);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshProfile = async () => {
+    if (!userId) return;
+    try {
+      const docRef = doc(db, 'users', userId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setUserProfile(docSnap.data() as UserProfile);
+      }
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+    }
+  };
+
   useEffect(() => {
-    const loadOrCreateProfile = async () => {
-      if (!userId || !user) {
-        setUserProfile(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        // Check if user profile exists in Firestore
-        const docRef = doc(db, 'users', userId);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setUserProfile(docSnap.data() as UserProfile);
-        } else {
-          // Create new profile for first-time users
-          const newProfile: UserProfile = {
-            uid: userId,
-            email: user.emailAddresses[0]?.emailAddress || '',
-            displayName: user.firstName || user.username || 'User',
-            calorieGoal: 2000,
-            createdAt: new Date(),
-          };
-          await setDoc(docRef, newProfile);
-          setUserProfile(newProfile);
-        }
-      } catch (error) {
-        console.error('Error loading profile:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (isLoaded) {
       loadOrCreateProfile();
     }
@@ -65,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userProfile,
         loading: !isLoaded || loading,
         isSignedIn: isSignedIn ?? false,
+        refreshProfile,
       }}
     >
       {children}
