@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { Text, View } from '@/components/Themed';
+import { StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, View as RNView } from 'react-native';
+import { Text } from '@/components/Themed';
 import { useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function LoginScreen() {
   const { signIn, setActive: setSignInActive, isLoaded: signInLoaded } = useSignIn();
@@ -50,8 +51,14 @@ export default function LoginScreen() {
       if (result.status === 'complete') {
         await setSignUpActive({ session: result.createdSessionId });
         router.replace('/(tabs)');
+      } else if (result.status === 'missing_requirements') {
+        await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+        Alert.alert(
+          'Verify your email',
+          'We sent a verification code to your email. Check your inbox.',
+          [{ text: 'OK' }]
+        );
       } else {
-        // May need email verification depending on Clerk settings
         Alert.alert('Check your email', 'Please verify your email to continue');
       }
     } catch (err: any) {
@@ -80,79 +87,92 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.content}>
-        <Text style={styles.title}>LIFTr</Text>
-        <Text style={styles.subtitle}>
-          {isLogin ? 'Sign in to continue' : 'Create your account'}
-        </Text>
+    <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <RNView style={styles.content}>
+          <Text style={styles.title}>LIFTr</Text>
+          <Text style={styles.subtitle}>
+            {isLogin ? 'Welcome back' : 'Create your account'}
+          </Text>
 
-        {!isLogin && (
+          {!isLogin && (
+            <TextInput
+              style={styles.input}
+              placeholder="Your Name"
+              placeholderTextColor="#64748b"
+              value={firstName}
+              onChangeText={setFirstName}
+              autoCapitalize="words"
+            />
+          )}
+
           <TextInput
             style={styles.input}
-            placeholder="Your Name"
-            value={firstName}
-            onChangeText={setFirstName}
-            autoCapitalize="words"
+            placeholder="Email"
+            placeholderTextColor="#64748b"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
-        )}
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#64748b"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          autoCapitalize="none"
-        />
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            <LinearGradient
+              colors={['#e94560', '#ff6b6b']}
+              style={styles.buttonGradient}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.switchButton}
+            onPress={() => setIsLogin(!isLogin)}
+          >
+            <Text style={styles.switchText}>
+              {isLogin
+                ? "Don't have an account? Sign Up"
+                : 'Already have an account? Sign In'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.switchButton}
-          onPress={() => setIsLogin(!isLogin)}
-        >
-          <Text style={styles.switchText}>
-            {isLogin
-              ? "Don't have an account? Sign Up"
-              : 'Already have an account? Sign In'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+        </RNView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  keyboardView: {
     flex: 1,
   },
   content: {
@@ -161,29 +181,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 48,
+    fontWeight: '900',
     textAlign: 'center',
+    color: '#fff',
+    letterSpacing: 4,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 32,
-    opacity: 0.7,
+    marginBottom: 40,
+    color: '#64748b',
   },
   input: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
+    backgroundColor: '#2d2d44',
+    borderRadius: 12,
     padding: 16,
     fontSize: 16,
     marginBottom: 16,
+    color: '#fff',
+    borderWidth: 1,
+    borderColor: '#374151',
   },
   button: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
     marginTop: 8,
+  },
+  buttonGradient: {
+    padding: 16,
+    alignItems: 'center',
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -191,8 +219,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: '700',
   },
   switchButton: {
     marginTop: 24,
@@ -200,7 +227,7 @@ const styles = StyleSheet.create({
   },
   switchText: {
     textAlign: 'center',
-    color: '#007AFF',
+    color: '#e94560',
     fontSize: 14,
   },
   backButton: {
@@ -209,6 +236,6 @@ const styles = StyleSheet.create({
   },
   backText: {
     textAlign: 'center',
-    color: '#666',
+    color: '#64748b',
   },
 });
