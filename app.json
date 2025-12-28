@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "fitness-tracker",
-    "slug": "fitness-tracker",
+    "name": "LIFTr",
+    "slug": "liftr",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fitnesstracker",
+    "scheme": "liftr",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
