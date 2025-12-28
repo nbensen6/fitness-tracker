@@ -77,8 +77,20 @@ export default function DashboardScreen() {
     <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <RNView style={styles.container}>
-          <Text style={styles.greeting}>Hey, {userProfile?.displayName?.split(' ')[0] || 'Champ'}!</Text>
-          <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
+          {/* Header with greeting and account button */}
+          <RNView style={styles.header}>
+            <RNView style={styles.headerLeft}>
+              <Text style={styles.greeting}>Hey, {userProfile?.displayName?.split(' ')[0] || 'Champ'}!</Text>
+              <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
+            </RNView>
+            <TouchableOpacity style={styles.accountButton} onPress={handleSignOut}>
+              <RNView style={styles.accountCircle}>
+                <Text style={styles.accountInitial}>
+                  {userProfile?.displayName?.charAt(0)?.toUpperCase() || 'U'}
+                </Text>
+              </RNView>
+            </TouchableOpacity>
+          </RNView>
 
           {/* Calorie Card */}
           <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.card}>
@@ -149,10 +161,6 @@ export default function DashboardScreen() {
               ))
             )}
           </LinearGradient>
-
-          <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </TouchableOpacity>
         </RNView>
       </ScrollView>
     </LinearGradient>
@@ -205,6 +213,33 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: 'transparent',
+  },
+  headerLeft: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  accountButton: {
+    padding: 4,
+  },
+  accountCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#e94560',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  accountInitial: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
   greeting: {
     fontSize: 28,
     fontWeight: '700',
@@ -213,7 +248,6 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 14,
     color: '#64748b',
-    marginBottom: 20,
   },
   card: {
     borderRadius: 16,
@@ -328,15 +362,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4ade80',
     fontWeight: '600',
-  },
-  signOutButton: {
-    marginTop: 20,
-    marginBottom: 40,
-    padding: 12,
-  },
-  signOutText: {
-    textAlign: 'center',
-    color: '#64748b',
-    fontSize: 14,
   },
 });
