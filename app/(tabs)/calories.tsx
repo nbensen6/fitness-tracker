@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, TextInput, TouchableOpacity, FlatList, Alert } from 'react-native';
-import { Text, View } from '@/components/Themed';
+import { StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ImageBackground, View as RNView } from 'react-native';
+import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { searchFoods, commonFoods } from '@/services/foodApi';
 import { addMealEntry, getMealsByDate, deleteMealEntry } from '@/services/firestore';
 import { FoodItem, MealEntry } from '@/types';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 export default function CaloriesScreen() {
-  const { userId, isSignedIn } = useAuth();
+  const { userId, isSignedIn, userProfile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
   const [todayMeals, setTodayMeals] = useState<MealEntry[]>([]);
@@ -17,6 +18,7 @@ export default function CaloriesScreen() {
   const [searching, setSearching] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
+  const calorieGoal = userProfile?.calorieGoal || 2000;
 
   useEffect(() => {
     if (userId) {
@@ -89,6 +91,9 @@ export default function CaloriesScreen() {
     0
   );
 
+  const remainingCalories = calorieGoal - totalCalories;
+  const calorieProgress = Math.min((totalCalories / calorieGoal) * 100, 100);
+
   const mealTypes: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
   const getMealsByType = (type: MealType) =>
@@ -96,174 +101,278 @@ export default function CaloriesScreen() {
 
   if (!isSignedIn) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.message}>Please sign in to track calories</Text>
-      </View>
+      <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
+        <RNView style={styles.messageContainer}>
+          <Text style={styles.message}>Please sign in to track calories</Text>
+        </RNView>
+      </LinearGradient>
     );
   }
 
   return (
-    <ScrollView style={styles.scrollView}>
-      <View style={styles.container}>
-        {/* Total Calories */}
-        <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Today's Total</Text>
-          <Text style={styles.totalValue}>{totalCalories} cal</Text>
-        </View>
+    <ImageBackground
+      source={require('@/assets/images/nutrition-spread.jpg')}
+      style={styles.backgroundImage}
+      resizeMode="cover"
+    >
+      <RNView style={styles.overlay}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <RNView style={styles.container}>
+            {/* Header */}
+            <Text style={styles.title}>Calories</Text>
 
-        {/* Search Section */}
-        <View style={styles.searchSection}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search food..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-            <Text style={styles.searchButtonText}>Search</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Meal Type Selector */}
-        <View style={styles.mealTypeSelector}>
-          {mealTypes.map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={[
-                styles.mealTypeButton,
-                selectedMealType === type && styles.mealTypeButtonActive,
-              ]}
-              onPress={() => setSelectedMealType(type)}
-            >
-              <Text
-                style={[
-                  styles.mealTypeText,
-                  selectedMealType === type && styles.mealTypeTextActive,
-                ]}
-              >
-                {type.charAt(0).toUpperCase() + type.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Search Results / Quick Add */}
-        {(searchResults.length > 0 || searchQuery === '') && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {searchQuery ? 'Search Results' : 'Quick Add'}
-            </Text>
-            {(searchResults.length > 0 ? searchResults : commonFoods).slice(0, 8).map((food) => (
-              <TouchableOpacity
-                key={food.id}
-                style={styles.foodItem}
-                onPress={() => handleAddFood(food)}
-              >
-                <View style={styles.foodInfo}>
-                  <Text style={styles.foodName}>{food.name}</Text>
-                  <Text style={styles.foodMacros}>
-                    P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
+            {/* Total Calories Card */}
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.totalCard}>
+              <RNView style={styles.totalHeader}>
+                <Text style={styles.totalLabel}>Today's Calories</Text>
+                <Text style={styles.goalText}>{totalCalories} / {calorieGoal}</Text>
+              </RNView>
+              <RNView style={styles.progressBar}>
+                <LinearGradient
+                  colors={calorieProgress >= 100 ? ['#ff6b6b', '#e94560'] : ['#4ade80', '#22c55e']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.progressFill, { width: `${calorieProgress}%` }]}
+                />
+              </RNView>
+              <RNView style={styles.statsRow}>
+                <RNView style={styles.statItem}>
+                  <Text style={styles.statValue}>{totalCalories}</Text>
+                  <Text style={styles.statLabel}>Eaten</Text>
+                </RNView>
+                <RNView style={styles.statDivider} />
+                <RNView style={styles.statItem}>
+                  <Text style={[styles.statValue, remainingCalories < 0 && styles.negative]}>
+                    {Math.abs(remainingCalories)}
                   </Text>
-                </View>
-                <View style={styles.foodCalories}>
-                  <Text style={styles.calorieValue}>{food.calories}</Text>
-                  <Text style={styles.calorieLabel}>cal</Text>
-                </View>
+                  <Text style={styles.statLabel}>{remainingCalories >= 0 ? 'Left' : 'Over'}</Text>
+                </RNView>
+              </RNView>
+            </LinearGradient>
+
+            {/* Search Section */}
+            <RNView style={styles.searchSection}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search food..."
+                placeholderTextColor="#64748b"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={handleSearch}
+                returnKeyType="search"
+              />
+              <TouchableOpacity onPress={handleSearch}>
+                <LinearGradient colors={['#e94560', '#ff6b6b']} style={styles.searchButton}>
+                  <Text style={styles.searchButtonText}>Search</Text>
+                </LinearGradient>
               </TouchableOpacity>
-            ))}
-          </View>
-        )}
+            </RNView>
 
-        {/* Today's Log */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today's Log</Text>
-          {mealTypes.map((type) => {
-            const meals = getMealsByType(type);
-            if (meals.length === 0) return null;
+            {/* Meal Type Selector */}
+            <RNView style={styles.mealTypeSelector}>
+              {mealTypes.map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.mealTypeButton,
+                    selectedMealType === type && styles.mealTypeButtonActive,
+                  ]}
+                  onPress={() => setSelectedMealType(type)}
+                >
+                  <Text
+                    style={[
+                      styles.mealTypeText,
+                      selectedMealType === type && styles.mealTypeTextActive,
+                    ]}
+                  >
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </RNView>
 
-            return (
-              <View key={type} style={styles.mealGroup}>
-                <Text style={styles.mealGroupTitle}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </Text>
-                {meals.map((meal) => (
-                  <View key={meal.id} style={styles.loggedMeal}>
-                    <View style={styles.loggedMealInfo}>
-                      <Text style={styles.loggedMealName}>
-                        {meal.foodItem.name}
-                      </Text>
-                      <Text style={styles.loggedMealCalories}>
-                        {meal.foodItem.calories * meal.quantity} cal
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => handleDeleteMeal(meal.id)}
-                    >
-                      <Text style={styles.deleteButtonText}>X</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            );
-          })}
-          {todayMeals.length === 0 && (
-            <Text style={styles.emptyText}>No meals logged today</Text>
-          )}
-        </View>
-      </View>
-    </ScrollView>
+            {/* Search Results / Quick Add */}
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {searchQuery ? 'Search Results' : 'Quick Add'}
+              </Text>
+              {(searchResults.length > 0 ? searchResults : commonFoods).slice(0, 8).map((food) => (
+                <TouchableOpacity
+                  key={food.id}
+                  style={styles.foodItem}
+                  onPress={() => handleAddFood(food)}
+                >
+                  <RNView style={styles.foodInfo}>
+                    <Text style={styles.foodName}>{food.name}</Text>
+                    <Text style={styles.foodMacros}>
+                      P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
+                    </Text>
+                  </RNView>
+                  <RNView style={styles.foodCalories}>
+                    <Text style={styles.calorieValue}>{food.calories}</Text>
+                    <Text style={styles.calorieLabel}>cal</Text>
+                  </RNView>
+                </TouchableOpacity>
+              ))}
+            </LinearGradient>
+
+            {/* Today's Log */}
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.section}>
+              <Text style={styles.sectionTitle}>Today's Log</Text>
+              {mealTypes.map((type) => {
+                const meals = getMealsByType(type);
+                if (meals.length === 0) return null;
+
+                return (
+                  <RNView key={type} style={styles.mealGroup}>
+                    <Text style={styles.mealGroupTitle}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                    {meals.map((meal) => (
+                      <RNView key={meal.id} style={styles.loggedMeal}>
+                        <RNView style={styles.loggedMealInfo}>
+                          <Text style={styles.loggedMealName}>
+                            {meal.foodItem.name}
+                          </Text>
+                          <Text style={styles.loggedMealCalories}>
+                            {meal.foodItem.calories * meal.quantity} cal
+                          </Text>
+                        </RNView>
+                        <TouchableOpacity
+                          style={styles.deleteButton}
+                          onPress={() => handleDeleteMeal(meal.id)}
+                        >
+                          <Text style={styles.deleteButtonText}>X</Text>
+                        </TouchableOpacity>
+                      </RNView>
+                    ))}
+                  </RNView>
+                );
+              })}
+              {todayMeals.length === 0 && (
+                <Text style={styles.emptyText}>No meals logged today</Text>
+              )}
+            </LinearGradient>
+          </RNView>
+        </ScrollView>
+      </RNView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientContainer: {
+    flex: 1,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 26, 46, 0.92)',
+  },
   scrollView: {
     flex: 1,
   },
   container: {
     flex: 1,
-    padding: 16,
+    padding: 20,
+    paddingTop: 40,
+  },
+  messageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   message: {
     textAlign: 'center',
-    marginTop: 40,
     fontSize: 16,
+    color: '#94a3b8',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 20,
   },
   totalCard: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 16,
   },
-  totalLabel: {
-    color: 'white',
-    fontSize: 14,
-    opacity: 0.9,
+  totalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  totalValue: {
-    color: 'white',
-    fontSize: 36,
-    fontWeight: 'bold',
+  totalLabel: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  goalText: {
+    color: '#64748b',
+    fontSize: 14,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#374151',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#374151',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  negative: {
+    color: '#ef4444',
   },
   searchSection: {
     flexDirection: 'row',
     marginBottom: 16,
+    gap: 8,
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#2d2d44',
+    borderRadius: 10,
+    padding: 14,
     fontSize: 16,
-    marginRight: 8,
+    color: '#fff',
+    borderWidth: 1,
+    borderColor: '#374151',
   },
   searchButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 10,
+    padding: 14,
     justifyContent: 'center',
   },
   searchButtonText: {
@@ -273,42 +382,46 @@ const styles = StyleSheet.create({
   mealTypeSelector: {
     flexDirection: 'row',
     marginBottom: 16,
+    backgroundColor: '#2d2d44',
+    borderRadius: 10,
+    padding: 4,
   },
   mealTypeButton: {
     flex: 1,
-    padding: 10,
+    paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-    marginHorizontal: 2,
+    alignItems: 'center',
   },
   mealTypeButtonActive: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#e94560',
   },
   mealTypeText: {
-    textAlign: 'center',
     fontSize: 12,
-    color: '#666',
+    color: '#64748b',
+    fontWeight: '500',
   },
   mealTypeTextActive: {
-    color: 'white',
+    color: '#fff',
     fontWeight: '600',
   },
   section: {
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 12,
-    color: '#333',
+    color: '#fff',
   },
   foodItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 10,
+    padding: 14,
     marginBottom: 8,
   },
   foodInfo: {
@@ -317,11 +430,11 @@ const styles = StyleSheet.create({
   foodName: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: '#fff',
   },
   foodMacros: {
     fontSize: 12,
-    color: '#666',
+    color: '#64748b',
     marginTop: 4,
   },
   foodCalories: {
@@ -330,11 +443,11 @@ const styles = StyleSheet.create({
   calorieValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#4ade80',
   },
   calorieLabel: {
     fontSize: 10,
-    color: '#666',
+    color: '#64748b',
   },
   mealGroup: {
     marginBottom: 16,
@@ -342,41 +455,39 @@ const styles = StyleSheet.create({
   mealGroupTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+    color: '#94a3b8',
     marginBottom: 8,
   },
   loggedMeal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: '#eee',
+    marginBottom: 6,
   },
   loggedMealInfo: {
     flex: 1,
   },
   loggedMealName: {
     fontSize: 14,
-    color: '#333',
+    color: '#fff',
   },
   loggedMealCalories: {
     fontSize: 12,
-    color: '#666',
+    color: '#4ade80',
   },
   deleteButton: {
     padding: 8,
   },
   deleteButtonText: {
-    color: '#f44336',
+    color: '#ef4444',
     fontWeight: 'bold',
   },
   emptyText: {
     textAlign: 'center',
-    color: '#666',
-    marginTop: 20,
+    color: '#64748b',
+    paddingVertical: 20,
   },
 });

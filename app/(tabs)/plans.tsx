@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, TouchableOpacity, Alert, View as RNView } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, Alert, View as RNView, ImageBackground, Linking } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { setUserWorkoutPlan, getUserWorkoutPlan, updateUserWorkoutPlan } from '@/services/firestore';
@@ -101,6 +101,11 @@ export default function PlansScreen() {
     ]);
   };
 
+  const openYouTubeSearch = (exerciseName: string) => {
+    const searchQuery = encodeURIComponent(`${exerciseName} exercise how to`);
+    Linking.openURL(`https://www.youtube.com/results?search_query=${searchQuery}`);
+  };
+
   if (!isSignedIn) {
     return (
       <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
@@ -118,80 +123,95 @@ export default function PlansScreen() {
     );
 
     return (
-      <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <RNView style={styles.container}>
-            <RNView style={styles.activePlanHeader}>
-              <Text style={styles.activePlanName}>{activePlan.plan.name}</Text>
-              <Text style={styles.activePlanProgress}>
-                Week {Math.ceil(activePlan.currentDay / 7)} | Day {activePlan.currentDay}
-              </Text>
-            </RNView>
+      <ImageBackground
+        source={require('@/assets/images/gym-equipment.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <RNView style={styles.overlay}>
+          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+            <RNView style={styles.container}>
+              <RNView style={styles.activePlanHeader}>
+                <Text style={styles.activePlanName}>{activePlan.plan.name}</Text>
+                <Text style={styles.activePlanProgress}>
+                  Week {Math.ceil(activePlan.currentDay / 7)} | Day {activePlan.currentDay}
+                </Text>
+              </RNView>
 
-            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.todayCard}>
-              <Text style={styles.todayTitle}>Today's Workout</Text>
-              <Text style={styles.todayName}>{currentDayPlan?.name}</Text>
+              <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.todayCard}>
+                <Text style={styles.todayTitle}>Today's Workout</Text>
+                <Text style={styles.todayName}>{currentDayPlan?.name}</Text>
 
-              {currentDayPlan?.isRestDay ? (
-                <RNView style={styles.restDay}>
-                  <Text style={styles.restDayText}>Rest Day</Text>
-                  <Text style={styles.restDaySubtext}>
-                    Recovery is important! Take it easy today.
-                  </Text>
-                </RNView>
-              ) : (
-                <>
-                  {currentDayPlan?.exercises.map((ex, index) => (
-                    <RNView key={index} style={styles.exerciseItem}>
-                      <Text style={styles.exerciseItemName}>{ex.exercise.name}</Text>
-                      <Text style={styles.exerciseItemSets}>
-                        {ex.targetSets} x {ex.targetReps}
+                {currentDayPlan?.isRestDay ? (
+                  <RNView style={styles.restDay}>
+                    <Text style={styles.restDayText}>Rest Day</Text>
+                    <Text style={styles.restDaySubtext}>
+                      Recovery is important! Take it easy today.
+                    </Text>
+                  </RNView>
+                ) : (
+                  <>
+                    {currentDayPlan?.exercises.map((ex, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.exerciseItem}
+                        onPress={() => openYouTubeSearch(ex.exercise.name)}
+                      >
+                        <RNView style={styles.exerciseItemLeft}>
+                          <Text style={styles.exerciseItemName}>{ex.exercise.name}</Text>
+                          <Text style={styles.exerciseItemSets}>
+                            {ex.targetSets} x {ex.targetReps}
+                          </Text>
+                        </RNView>
+                        <RNView style={styles.videoIcon}>
+                          <Text style={styles.videoIconText}>▶</Text>
+                        </RNView>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+
+                <TouchableOpacity style={styles.completeButton} onPress={completeDay}>
+                  <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.completeGradient}>
+                    <Text style={styles.completeButtonText}>
+                      {currentDayPlan?.isRestDay ? 'Start Next Day' : 'Complete Workout'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+
+              <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.weekOverview}>
+                <Text style={styles.weekTitle}>This Week</Text>
+                <RNView style={styles.weekDays}>
+                  {activePlan.plan.days.slice(0, 7).map((day) => (
+                    <RNView
+                      key={day.dayNumber}
+                      style={[
+                        styles.weekDay,
+                        activePlan.completedDays.includes(day.dayNumber) && styles.weekDayCompleted,
+                        day.dayNumber === activePlan.currentDay && styles.weekDayCurrent,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.weekDayText,
+                          activePlan.completedDays.includes(day.dayNumber) && styles.weekDayTextCompleted,
+                        ]}
+                      >
+                        {day.dayNumber}
                       </Text>
                     </RNView>
                   ))}
-                </>
-              )}
+                </RNView>
+              </LinearGradient>
 
-              <TouchableOpacity style={styles.completeButton} onPress={completeDay}>
-                <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.completeGradient}>
-                  <Text style={styles.completeButtonText}>
-                    {currentDayPlan?.isRestDay ? 'Start Next Day' : 'Complete Workout'}
-                  </Text>
-                </LinearGradient>
+              <TouchableOpacity style={styles.cancelPlanButton} onPress={cancelPlan}>
+                <Text style={styles.cancelPlanText}>Cancel Plan</Text>
               </TouchableOpacity>
-            </LinearGradient>
-
-            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.weekOverview}>
-              <Text style={styles.weekTitle}>This Week</Text>
-              <RNView style={styles.weekDays}>
-                {activePlan.plan.days.slice(0, 7).map((day) => (
-                  <RNView
-                    key={day.dayNumber}
-                    style={[
-                      styles.weekDay,
-                      activePlan.completedDays.includes(day.dayNumber) && styles.weekDayCompleted,
-                      day.dayNumber === activePlan.currentDay && styles.weekDayCurrent,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.weekDayText,
-                        activePlan.completedDays.includes(day.dayNumber) && styles.weekDayTextCompleted,
-                      ]}
-                    >
-                      {day.dayNumber}
-                    </Text>
-                  </RNView>
-                ))}
-              </RNView>
-            </LinearGradient>
-
-            <TouchableOpacity style={styles.cancelPlanButton} onPress={cancelPlan}>
-              <Text style={styles.cancelPlanText}>Cancel Plan</Text>
-            </TouchableOpacity>
-          </RNView>
-        </ScrollView>
-      </LinearGradient>
+            </RNView>
+          </ScrollView>
+        </RNView>
+      </ImageBackground>
     );
   }
 
@@ -281,6 +301,15 @@ export default function PlansScreen() {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 26, 46, 0.92)',
   },
   scrollView: {
     flex: 1,
@@ -495,19 +524,36 @@ const styles = StyleSheet.create({
   exerciseItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#374151',
   },
+  exerciseItemLeft: {
+    flex: 1,
+  },
   exerciseItemName: {
     fontSize: 16,
     color: '#fff',
-    flex: 1,
   },
   exerciseItemSets: {
     fontSize: 14,
     color: '#4ade80',
     fontWeight: '600',
+    marginTop: 2,
+  },
+  videoIcon: {
+    backgroundColor: '#ef4444',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+  videoIconText: {
+    color: '#fff',
+    fontSize: 12,
   },
   completeButton: {
     borderRadius: 10,

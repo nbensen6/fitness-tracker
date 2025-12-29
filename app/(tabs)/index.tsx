@@ -58,17 +58,23 @@ export default function DashboardScreen() {
 
   if (!isSignedIn) {
     return (
-      <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.gradientContainer}>
-        <RNView style={styles.heroContainer}>
-          <Text style={styles.heroTitle}>LIFTr</Text>
-          <Text style={styles.heroTagline}>Track. Lift. Transform.</Text>
-          <TouchableOpacity style={styles.heroButton} onPress={() => router.push('/login')}>
-            <LinearGradient colors={['#e94560', '#ff6b6b']} style={styles.heroButtonGradient}>
-              <Text style={styles.heroButtonText}>Get Started</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+      <ImageBackground
+        source={require('@/assets/images/gym-runner.jpg')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <RNView style={styles.heroOverlay}>
+          <RNView style={styles.heroContainer}>
+            <Text style={styles.heroTitle}>LIFTr</Text>
+            <Text style={styles.heroTagline}>Track. Lift. Transform.</Text>
+            <TouchableOpacity style={styles.heroButton} onPress={() => router.push('/login')}>
+              <LinearGradient colors={['#e94560', '#ff6b6b']} style={styles.heroButtonGradient}>
+                <Text style={styles.heroButtonText}>Get Started</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </RNView>
         </RNView>
-      </LinearGradient>
+      </ImageBackground>
     );
   }
 
@@ -179,6 +185,15 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   gradientContainer: {
     flex: 1,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  heroOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 26, 46, 0.85)',
   },
   scrollView: {
     flex: 1,
