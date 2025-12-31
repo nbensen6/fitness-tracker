@@ -11,7 +11,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase.config';
-import { MealEntry, Workout, UserWorkoutPlan } from '../types';
+import { MealEntry, Workout, UserWorkoutPlan, Recipe } from '../types';
 
 // Meal entries
 export const addMealEntry = async (userId: string, entry: Omit<MealEntry, 'id' | 'userId' | 'timestamp'>) => {
@@ -40,6 +40,61 @@ export const getMealsByDate = async (userId: string, date: string): Promise<Meal
 
 export const deleteMealEntry = async (mealId: string) => {
   await deleteDoc(doc(db, 'meals', mealId));
+};
+
+export const getMealsForDateRange = async (userId: string, startDate: string, endDate: string): Promise<MealEntry[]> => {
+  const q = query(
+    collection(db, 'meals'),
+    where('userId', '==', userId),
+    where('date', '>=', startDate),
+    where('date', '<=', endDate),
+    orderBy('date', 'desc'),
+    orderBy('timestamp', 'desc')
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as MealEntry[];
+};
+
+// Recipes
+export const addRecipe = async (userId: string, recipe: Omit<Recipe, 'id' | 'userId' | 'createdAt'>) => {
+  const docRef = await addDoc(collection(db, 'recipes'), {
+    ...recipe,
+    userId,
+    createdAt: Timestamp.now()
+  });
+  return docRef.id;
+};
+
+export const getUserRecipes = async (userId: string): Promise<Recipe[]> => {
+  const q = query(
+    collection(db, 'recipes'),
+    where('userId', '==', userId)
+  );
+
+  const snapshot = await getDocs(q);
+  const recipes = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as Recipe[];
+
+  // Sort client-side to avoid needing a composite index
+  return recipes.sort((a, b) => {
+    const dateA = a.createdAt?.toDate?.() || new Date(0);
+    const dateB = b.createdAt?.toDate?.() || new Date(0);
+    return dateB.getTime() - dateA.getTime();
+  });
+};
+
+export const deleteRecipe = async (recipeId: string) => {
+  await deleteDoc(doc(db, 'recipes', recipeId));
+};
+
+export const updateRecipe = async (recipeId: string, updates: Partial<Omit<Recipe, 'id' | 'userId' | 'createdAt'>>) => {
+  await updateDoc(doc(db, 'recipes', recipeId), updates);
 };
 
 // Workouts

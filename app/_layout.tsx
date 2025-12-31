@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { ClerkProvider, ClerkLoaded } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '@/hooks/useAuth';
@@ -19,10 +20,13 @@ export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
-// Clerk token cache for secure storage
+// Clerk token cache - use SecureStore on mobile, localStorage on web
 const tokenCache = {
   async getToken(key: string) {
     try {
+      if (Platform.OS === 'web') {
+        return localStorage.getItem(key);
+      }
       return SecureStore.getItemAsync(key);
     } catch (err) {
       return null;
@@ -30,6 +34,10 @@ const tokenCache = {
   },
   async saveToken(key: string, value: string) {
     try {
+      if (Platform.OS === 'web') {
+        localStorage.setItem(key, value);
+        return;
+      }
       return SecureStore.setItemAsync(key, value);
     } catch (err) {
       return;
@@ -44,6 +52,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    PermanentMarker: require('../assets/fonts/PermanentMarker-Regular.ttf'),
     ...FontAwesome.font,
   });
 
@@ -81,6 +90,10 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="account-settings" options={{ headerShown: false }} />
+        <Stack.Screen name="weekly-log" options={{ headerShown: false }} />
+        <Stack.Screen name="recipes" options={{ headerShown: false }} />
+        <Stack.Screen name="barcode-scanner" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

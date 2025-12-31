@@ -1,6 +1,7 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -10,6 +11,8 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -19,8 +22,9 @@ export default function TabLayout() {
           backgroundColor: '#1a1a2e',
           borderTopColor: '#2d2d44',
           borderTopWidth: 1,
-          paddingTop: 5,
-          height: 60,
+          paddingTop: 8,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          height: 60 + (insets.bottom > 0 ? insets.bottom : 10),
         },
         headerStyle: {
           backgroundColor: '#1a1a2e',
@@ -41,7 +45,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="calories"
         options={{
-          title: 'Calories',
+          title: 'Log',
           headerShown: false,
           tabBarIcon: ({ color }) => <TabBarIcon name="cutlery" color={color} />,
         }}

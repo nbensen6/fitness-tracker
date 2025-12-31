@@ -8,6 +8,7 @@ import {
   View as RNView,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +16,8 @@ import { updateUserProfile } from '@/services/firestore';
 import { calculateCaloriesForUser, calculateSuggestedMacros, getActivityLevelDescription } from '@/services/calorieCalculator';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 
 const ACTIVITY_LEVELS = [
   { key: 'sedentary', label: 'Sedentary' },
@@ -26,9 +29,11 @@ const ACTIVITY_LEVELS = [
 
 export default function AccountSettingsScreen() {
   const { userId, userProfile, refreshProfile } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // Form state
   const [displayName, setDisplayName] = useState('');
+  const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [currentWeight, setCurrentWeight] = useState('');
   const [heightFeet, setHeightFeet] = useState('');
   const [heightInches, setHeightInches] = useState('');
@@ -48,6 +53,7 @@ export default function AccountSettingsScreen() {
   useEffect(() => {
     if (userProfile) {
       setDisplayName(userProfile.displayName || '');
+      setProfilePicture(userProfile.profilePicture || null);
       setCurrentWeight(userProfile.currentWeight?.toString() || '');
       setHeightFeet(userProfile.heightFeet?.toString() || '');
       setHeightInches(userProfile.heightInches?.toString() || '');
@@ -61,6 +67,27 @@ export default function AccountSettingsScreen() {
       setFatGoal(userProfile.fatGoal?.toString() || '');
     }
   }, [userProfile]);
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your photo library to upload a profile picture.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets[0].base64) {
+      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setProfilePicture(base64Image);
+    }
+  };
 
   // Calculate calorie recommendation when relevant fields change
   useEffect(() => {
@@ -111,6 +138,7 @@ export default function AccountSettingsScreen() {
         updatedAt: new Date(),
       };
 
+      if (profilePicture) updates.profilePicture = profilePicture;
       if (currentWeight) updates.currentWeight = parseFloat(currentWeight);
       if (heightFeet) updates.heightFeet = parseInt(heightFeet);
       if (heightInches) updates.heightInches = parseInt(heightInches);
@@ -150,7 +178,7 @@ export default function AccountSettingsScreen() {
   return (
     <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.container}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, paddingTop: insets.top }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -165,6 +193,25 @@ export default function AccountSettingsScreen() {
           {/* Profile Section */}
           <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.section}>
             <Text style={styles.sectionTitle}>Profile</Text>
+
+            {/* Profile Picture */}
+            <RNView style={styles.profilePictureContainer}>
+              <TouchableOpacity onPress={pickImage} style={styles.profilePictureButton}>
+                {profilePicture ? (
+                  <Image source={{ uri: profilePicture }} style={styles.profilePicture} />
+                ) : (
+                  <RNView style={styles.profilePicturePlaceholder}>
+                    <Text style={styles.profilePictureInitial}>
+                      {displayName?.charAt(0)?.toUpperCase() || 'U'}
+                    </Text>
+                  </RNView>
+                )}
+                <RNView style={styles.editBadge}>
+                  <Text style={styles.editBadgeText}>Edit</Text>
+                </RNView>
+              </TouchableOpacity>
+              <Text style={styles.profilePictureHint}>Tap to change profile picture</Text>
+            </RNView>
 
             <Text style={styles.label}>Display Name</Text>
             <TextInput
@@ -412,6 +459,54 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
     marginBottom: 16,
+  },
+  profilePictureContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  profilePictureButton: {
+    position: 'relative',
+  },
+  profilePicture: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: '#e94560',
+  },
+  profilePicturePlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#e94560',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#e94560',
+  },
+  profilePictureInitial: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  editBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  profilePictureHint: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 8,
   },
   label: {
     fontSize: 14,

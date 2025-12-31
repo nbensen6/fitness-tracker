@@ -1,0 +1,48 @@
+Here are 4 Midjourney prompts tailored for LIFTr:
+
+  ---
+  1. Hero/Landing Page Background
+  modern gym interior with dramatic moody lighting, dark atmosphere with orange and amber accent lights, weight racks and equipment silhouetted, cinematic depth of field, fitness aesthetic, no people, dark concrete floors, industrial style --ar 16:9 --v 6 --style raw
+
+  ---
+  2. Workout Section Background
+  close-up of steel dumbbells on a rack, shallow depth of field, dark gym background with subtle blue and orange rim lighting, textured metal, premium fitness equipment photography, moody and motivational atmosphere --ar 16:9 --v 6 --style raw
+
+  ---
+  3. Nutrition/Calories Section Background
+  overhead flat lay of healthy meal prep containers with grilled chicken, rice, and vegetables, dark slate background, soft natural lighting, minimal and clean aesthetic, fitness nutrition photography, muted earth tones --ar 16:9 --v 6 --style raw
+
+  ---
+  4. Abstract/Gradient Option (versatile)
+  abstract flowing smoke and light, dark background with glowing orange and deep purple gradients, ethereal and dynamic motion, fitness energy concept, cinematic lighting, ultra smooth transitions --ar 16:9 --v 6 --style raw
+
+  ---
+  Tips:
+  - Add --no text, logos, watermarks to avoid unwanted elements
+  - Use --ar 9:16 if you need mobile/portrait backgrounds
+  - Swap orange for your brand color if different
+  - Run each prompt 3-4 times to get variations to choose from
+
+  Want me to create more prompts for specific sections like the login screen or achievement badges?
+
+> yeah do login and achievements
+
+● 5. Login Screen Background
+  silhouette of athletic person standing in doorway of dark gym, dramatic backlight creating golden rim light, fog and dust particles in air, motivational and powerful mood, cinematic composition, anonymous figure, transformation journey concept --ar 9:16 --v 6 --style raw
+
+  ---
+  6. Login Screen (Alternative - More Minimal)
+  dark textured concrete wall with single dramatic spotlight from above, subtle orange glow, industrial gym aesthetic, moody and minimal, negative space for UI overlay, premium fitness brand atmosphere --ar 9:16 --v 6 --style raw
+
+  ---
+  7. Achievements/Badges Background
+  golden trophy and medal collection on dark velvet surface, dramatic spotlight from above, particles of gold dust floating in air, celebration and victory aesthetic, shallow depth of field, luxury sports achievement photography --ar 16:9 --v 6 --style raw
+
+  ---
+  8. Achievements (Abstract/Gaming Style)
+  abstract 3D geometric shapes floating in dark space, glowing gold and bronze metallic surfaces, hexagonal badge shapes with soft light emission, gaming achievement UI aesthetic, dark purple background with golden accents, futuristic and premium --ar 16:9 --v 6 --style raw
+
+  ---
+  Bonus - Badge Icons Prompt:
+  single metallic badge icon, [ACHIEVEMENT NAME] symbol, gold and dark steel materials, 3D render on pure black background, game UI asset style, glowing edges, isometric view --ar 1:1 --v 6 --style raw
+  (Replace [ACHIEVEMENT NAME] with: flame for streaks, dumbbell for strength, lightning bolt for PRs, etc.)

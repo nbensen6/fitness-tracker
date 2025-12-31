@@ -153,7 +153,7 @@ export default function WorkoutsScreen() {
   if (!workoutStarted) {
     return (
       <ImageBackground
-        source={require('@/assets/images/gym-equipment.jpg')}
+        source={require('@/assets/images/nbensen6_close-up_of_steel_dumbbells_on_a_rack_shallow_depth__1838cc81-ad8e-4843-8f49-5d83cbdea52d_0.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
@@ -195,7 +195,7 @@ export default function WorkoutsScreen() {
 
   return (
     <ImageBackground
-      source={require('@/assets/images/gym-equipment.jpg')}
+      source={require('@/assets/images/nbensen6_close-up_of_steel_dumbbells_on_a_rack_shallow_depth__1838cc81-ad8e-4843-8f49-5d83cbdea52d_0.png')}
       style={styles.backgroundImage}
       resizeMode="cover"
     >
@@ -381,6 +381,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     paddingTop: 40,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: '50%',
   },
   messageContainer: {
     flex: 1,

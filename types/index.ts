@@ -19,6 +19,8 @@ export interface UserProfile {
   proteinGoal?: number;
   carbsGoal?: number;
   fatGoal?: number;
+  // Profile picture
+  profilePicture?: string;
   // Timestamps
   createdAt: Date;
   updatedAt?: Date;
@@ -33,25 +35,56 @@ export interface CalorieCalculation {
   weeklyChange: number; // Expected weekly weight change in lbs
 }
 
+// Serving unit types
+export type ServingUnit = 'g' | 'oz' | 'cup' | 'tbsp' | 'tsp' | 'piece' | 'slice' | 'ml';
+
 // Calorie tracking
 export interface FoodItem {
   id: string;
   name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  servingSize: string;
+  calories: number; // per serving
+  protein: number; // per serving
+  carbs: number; // per serving
+  fat: number; // per serving
+  servingSize: string; // display string like "1 cup (80g)"
+  servingGrams: number; // grams per serving (base unit for calculations)
+  defaultUnit: ServingUnit; // default unit for this food
+  availableUnits?: ServingUnit[]; // units that make sense for this food
+  gramsPerCup?: number; // grams per cup for this specific food (overrides default 240g)
 }
 
 export interface MealEntry {
   id: string;
   userId: string;
   foodItem: FoodItem;
-  quantity: number;
+  quantity: number; // amount in the specified unit
+  unit: ServingUnit; // unit used for this entry
+  gramsConsumed: number; // actual grams consumed (for accurate calorie calc)
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   date: string;
   timestamp: Date;
+}
+
+// Recipe ingredient
+export interface RecipeIngredient {
+  foodItem: FoodItem;
+  quantity: number;
+  unit: ServingUnit;
+  gramsConsumed: number;
+}
+
+// Saved recipe (combination of foods)
+export interface Recipe {
+  id: string;
+  userId: string;
+  name: string;
+  ingredients: RecipeIngredient[];
+  totalCalories: number;
+  totalProtein: number;
+  totalCarbs: number;
+  totalFat: number;
+  defaultMealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  createdAt: Date;
 }
 
 // Workout tracking

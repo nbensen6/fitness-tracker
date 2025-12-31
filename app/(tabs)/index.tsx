@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, TouchableOpacity, ImageBackground, View as RNView } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, ImageBackground, View as RNView, Platform, StatusBar, Image, ImageSourcePropType } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { useClerk } from '@clerk/clerk-expo';
@@ -16,6 +17,7 @@ export default function DashboardScreen() {
   const [todayWorkouts, setTodayWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const today = new Date().toISOString().split('T')[0];
   const calorieGoal = userProfile?.calorieGoal || 2000;
@@ -59,11 +61,16 @@ export default function DashboardScreen() {
   if (!isSignedIn) {
     return (
       <ImageBackground
-        source={require('@/assets/images/gym-runner.jpg')}
+        source={require('@/assets/images/nbensen6_modern_gym_interior_with_dramatic_moody_lighting_dar_d8b805ed-c2fe-4b60-abc6-e510ec274e31_1.png')}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
-        <RNView style={styles.heroOverlay}>
+        <RNView style={[styles.heroOverlay, { paddingTop: insets.top }]}>
+          <Image
+            source={require('@/assets/images/Outlined Logo.png')}
+            style={styles.heroTopRightLogo}
+            resizeMode="contain"
+          />
           <RNView style={styles.heroContainer}>
             <Text style={styles.heroTitle}>LIFTr</Text>
             <Text style={styles.heroTagline}>Track. Lift. Transform.</Text>
@@ -82,9 +89,14 @@ export default function DashboardScreen() {
   const remainingCalories = calorieGoal - todayCalories;
 
   return (
-    <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <RNView style={styles.container}>
+    <ImageBackground
+      source={require('@/assets/images/nbensen6_modern_gym_interior_with_dramatic_moody_lighting_dar_d8b805ed-c2fe-4b60-abc6-e510ec274e31_1.png')}
+      style={styles.backgroundImage}
+      resizeMode="cover"
+    >
+      <RNView style={[styles.dashboardOverlay, { paddingTop: insets.top }]}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <RNView style={styles.container}>
           {/* Header with greeting and account button */}
           <RNView style={styles.header}>
             <RNView style={styles.headerLeft}>
@@ -92,11 +104,15 @@ export default function DashboardScreen() {
               <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</Text>
             </RNView>
             <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccountMenu(true)}>
-              <RNView style={styles.accountCircle}>
-                <Text style={styles.accountInitial}>
-                  {userProfile?.displayName?.charAt(0)?.toUpperCase() || 'U'}
-                </Text>
-              </RNView>
+              {userProfile?.profilePicture ? (
+                <Image source={{ uri: userProfile.profilePicture }} style={styles.accountImage} />
+              ) : (
+                <RNView style={styles.accountCircle}>
+                  <Text style={styles.accountInitial}>
+                    {userProfile?.displayName?.charAt(0)?.toUpperCase() || 'U'}
+                  </Text>
+                </RNView>
+              )}
             </TouchableOpacity>
           </RNView>
 
@@ -172,13 +188,14 @@ export default function DashboardScreen() {
         </RNView>
       </ScrollView>
 
-      <AccountMenu
-        visible={showAccountMenu}
-        onClose={() => setShowAccountMenu(false)}
-        onSignOut={handleSignOut}
-        userInitial={userProfile?.displayName?.charAt(0)?.toUpperCase() || 'U'}
-      />
-    </LinearGradient>
+        <AccountMenu
+          visible={showAccountMenu}
+          onClose={() => setShowAccountMenu(false)}
+          onSignOut={handleSignOut}
+          userInitial={userProfile?.displayName?.charAt(0)?.toUpperCase() || 'U'}
+        />
+      </RNView>
+    </ImageBackground>
   );
 }
 
@@ -195,6 +212,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(26, 26, 46, 0.85)',
   },
+  dashboardOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 26, 46, 0.92)',
+  },
   scrollView: {
     flex: 1,
   },
@@ -203,6 +224,9 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 10,
     backgroundColor: 'transparent',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: '50%',
   },
   heroContainer: {
     flex: 1,
@@ -211,11 +235,20 @@ const styles = StyleSheet.create({
     padding: 40,
     backgroundColor: 'transparent',
   },
+  heroTopRightLogo: {
+    position: 'absolute',
+    top: 50,
+    right: 30,
+    width: 100,
+    height: 100,
+    zIndex: 10,
+  },
   heroTitle: {
     fontSize: 56,
     fontWeight: '900',
     color: '#fff',
     letterSpacing: 4,
+    fontFamily: 'PermanentMarker',
   },
   heroTagline: {
     fontSize: 18,
@@ -258,6 +291,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#e94560',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  accountImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#e94560',
   },
   accountInitial: {
     color: '#fff',
