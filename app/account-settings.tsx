@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   ScrollView,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Modal,
 } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,6 +19,8 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import Cropper from 'react-easy-crop';
+import type { Area } from 'react-easy-crop';
 
 const ACTIVITY_LEVELS = [
   { key: 'sedentary', label: 'Sedentary' },
@@ -35,6 +38,13 @@ export default function AccountSettingsScreen() {
   const [displayName, setDisplayName] = useState('');
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [currentWeight, setCurrentWeight] = useState('');
+
+  // Image cropping state (for web)
+  const [showCropper, setShowCropper] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [heightFeet, setHeightFeet] = useState('');
   const [heightInches, setHeightInches] = useState('');
   const [age, setAge] = useState('');
@@ -68,6 +78,67 @@ export default function AccountSettingsScreen() {
     }
   }, [userProfile]);
 
+  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const createCroppedImage = async (): Promise<string | null> => {
+    if (!imageToCrop || !croppedAreaPixels) return null;
+
+    return new Promise((resolve) => {
+      const image = new window.Image();
+      image.src = imageToCrop;
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+
+        // Set canvas size to desired output size
+        const outputSize = 200;
+        canvas.width = outputSize;
+        canvas.height = outputSize;
+
+        // Draw the cropped portion
+        ctx.drawImage(
+          image,
+          croppedAreaPixels.x,
+          croppedAreaPixels.y,
+          croppedAreaPixels.width,
+          croppedAreaPixels.height,
+          0,
+          0,
+          outputSize,
+          outputSize
+        );
+
+        // Convert to base64
+        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(base64);
+      };
+    });
+  };
+
+  const handleCropConfirm = async () => {
+    const croppedImage = await createCroppedImage();
+    if (croppedImage) {
+      setProfilePicture(croppedImage);
+    }
+    setShowCropper(false);
+    setImageToCrop(null);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+  };
+
+  const handleCropCancel = () => {
+    setShowCropper(false);
+    setImageToCrop(null);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+  };
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -77,15 +148,22 @@ export default function AccountSettingsScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: Platform.OS !== 'web', // Only use native editing on mobile
       aspect: [1, 1],
-      quality: 0.5,
-      base64: true,
+      quality: 0.8,
+      base64: Platform.OS !== 'web', // Only need base64 on mobile
     });
 
-    if (!result.canceled && result.assets[0].base64) {
-      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-      setProfilePicture(base64Image);
+    if (!result.canceled && result.assets[0]) {
+      if (Platform.OS === 'web') {
+        // On web, show the cropper modal
+        setImageToCrop(result.assets[0].uri);
+        setShowCropper(true);
+      } else if (result.assets[0].base64) {
+        // On mobile, use the already-cropped image
+        const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        setProfilePicture(base64Image);
+      }
     }
   };
 
@@ -415,6 +493,58 @@ export default function AccountSettingsScreen() {
           <RNView style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Image Cropper Modal (Web only) */}
+      {Platform.OS === 'web' && (
+        <Modal visible={showCropper} transparent animationType="fade">
+          <RNView style={styles.cropperOverlay}>
+            <RNView style={styles.cropperContainer}>
+              <Text style={styles.cropperTitle}>Position Your Photo</Text>
+              <Text style={styles.cropperSubtitle}>Drag to move, scroll to zoom</Text>
+
+              <RNView style={styles.cropperArea}>
+                {imageToCrop && (
+                  <Cropper
+                    image={imageToCrop}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={1}
+                    cropShape="round"
+                    showGrid={false}
+                    onCropChange={setCrop}
+                    onZoomChange={setZoom}
+                    onCropComplete={onCropComplete}
+                  />
+                )}
+              </RNView>
+
+              <RNView style={styles.zoomControl}>
+                <Text style={styles.zoomLabel}>Zoom</Text>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: '#e94560' }}
+                />
+              </RNView>
+
+              <RNView style={styles.cropperButtons}>
+                <TouchableOpacity style={styles.cropperCancelButton} onPress={handleCropCancel}>
+                  <Text style={styles.cropperCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleCropConfirm}>
+                  <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.cropperConfirmButton}>
+                    <Text style={styles.cropperConfirmText}>Confirm</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </RNView>
+            </RNView>
+          </RNView>
+        </Modal>
+      )}
     </LinearGradient>
   );
 }
@@ -641,5 +771,76 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
+  },
+  // Cropper modal styles
+  cropperOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cropperContainer: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+  },
+  cropperTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  cropperSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 20,
+  },
+  cropperArea: {
+    width: 280,
+    height: 280,
+    position: 'relative',
+    borderRadius: 140,
+    overflow: 'hidden',
+  },
+  zoomControl: {
+    width: '100%',
+    marginTop: 20,
+    paddingHorizontal: 10,
+  },
+  zoomLabel: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  cropperButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+    width: '100%',
+  },
+  cropperCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#374151',
+    alignItems: 'center',
+  },
+  cropperCancelText: {
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  cropperConfirmButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  cropperConfirmText: {
+    color: '#fff',
+    fontWeight: '600',
   },
 });
