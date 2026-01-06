@@ -31,5 +31,13 @@
         "buildType": "app-bundle"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "nbensen6@gmail.com",
+        "ascAppId": "6739178493"
+      }
+    }
   }
 }

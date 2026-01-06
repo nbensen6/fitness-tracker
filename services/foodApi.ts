@@ -43,6 +43,79 @@ export const unitToGrams: Record<ServingUnit, number> = {
   ml: 1, // approximate, varies by density
 };
 
+// Common piece-based food types with typical gram weights per piece
+const pieceBasedFoods: { keywords: string[]; gramsPerPiece: number; unitLabel?: 'piece' | 'slice' }[] = [
+  // Baked goods
+  { keywords: ['bagel'], gramsPerPiece: 98 },
+  { keywords: ['muffin', 'cupcake'], gramsPerPiece: 113 },
+  { keywords: ['donut', 'doughnut'], gramsPerPiece: 60 },
+  { keywords: ['croissant'], gramsPerPiece: 57 },
+  { keywords: ['biscuit'], gramsPerPiece: 45 },
+  { keywords: ['cookie'], gramsPerPiece: 30 },
+  { keywords: ['brownie'], gramsPerPiece: 56 },
+  { keywords: ['waffle'], gramsPerPiece: 35 },
+  { keywords: ['pancake'], gramsPerPiece: 58 },
+  { keywords: ['english muffin'], gramsPerPiece: 57 },
+  { keywords: ['tortilla', 'wrap'], gramsPerPiece: 49 },
+  { keywords: ['pita'], gramsPerPiece: 60 },
+  { keywords: ['roll', 'bun'], gramsPerPiece: 50 },
+  { keywords: ['scone'], gramsPerPiece: 75 },
+  { keywords: ['danish', 'pastry'], gramsPerPiece: 70 },
+
+  // Bread (slices)
+  { keywords: ['bread', 'toast'], gramsPerPiece: 30, unitLabel: 'slice' },
+
+  // Proteins
+  { keywords: ['egg'], gramsPerPiece: 50 },
+  { keywords: ['hot dog', 'hotdog', 'frankfurter'], gramsPerPiece: 57 },
+  { keywords: ['sausage link'], gramsPerPiece: 45 },
+  { keywords: ['patty', 'burger patty'], gramsPerPiece: 113 },
+  { keywords: ['nugget', 'chicken nugget'], gramsPerPiece: 16 },
+  { keywords: ['wing', 'chicken wing'], gramsPerPiece: 28 },
+
+  // Whole fruits
+  { keywords: ['banana'], gramsPerPiece: 118 },
+  { keywords: ['apple'], gramsPerPiece: 182 },
+  { keywords: ['orange'], gramsPerPiece: 131 },
+  { keywords: ['pear'], gramsPerPiece: 178 },
+  { keywords: ['peach'], gramsPerPiece: 150 },
+  { keywords: ['plum'], gramsPerPiece: 66 },
+  { keywords: ['kiwi'], gramsPerPiece: 69 },
+  { keywords: ['lemon', 'lime'], gramsPerPiece: 65 },
+  { keywords: ['avocado'], gramsPerPiece: 150 },
+  { keywords: ['grapefruit'], gramsPerPiece: 246 },
+
+  // Bars & snacks
+  { keywords: ['protein bar', 'energy bar', 'granola bar', 'bar'], gramsPerPiece: 50 },
+  { keywords: ['rice cake'], gramsPerPiece: 9 },
+
+  // Prepared foods / sandwiches
+  { keywords: ['sandwich', 'sub', 'hoagie'], gramsPerPiece: 200 },
+  { keywords: ['burger', 'hamburger', 'cheeseburger'], gramsPerPiece: 200 },
+  { keywords: ['taco'], gramsPerPiece: 78 },
+  { keywords: ['burrito'], gramsPerPiece: 300 },
+  { keywords: ['pizza slice'], gramsPerPiece: 107, unitLabel: 'slice' },
+];
+
+// Helper function to detect if a food should be piece-based and get its typical weight
+export const detectPieceBasedFood = (productName: string): { isPiece: boolean; gramsPerPiece: number; unit: 'piece' | 'slice' } | null => {
+  const lowerName = productName.toLowerCase();
+
+  for (const item of pieceBasedFoods) {
+    for (const keyword of item.keywords) {
+      if (lowerName.includes(keyword)) {
+        return {
+          isPiece: true,
+          gramsPerPiece: item.gramsPerPiece,
+          unit: item.unitLabel || 'piece'
+        };
+      }
+    }
+  }
+
+  return null;
+};
+
 // Convert amount from one unit to grams
 export const convertToGrams = (amount: number, unit: ServingUnit, food?: FoodItem): number => {
   if (unit === 'piece' || unit === 'slice') {
@@ -89,18 +162,40 @@ export const searchFoods = async (searchTerm: string): Promise<FoodItem[]> => {
 
     return data.products
       .filter((p: OpenFoodFactsProduct) => p.product_name && p.nutriments)
-      .map((product: OpenFoodFactsProduct): FoodItem => ({
-        id: product.code,
-        name: product.product_name,
-        calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
-        protein: Math.round(product.nutriments.proteins_100g || 0),
-        carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
-        fat: Math.round(product.nutriments.fat_100g || 0),
-        servingSize: '100g',
-        servingGrams: 100, // API returns per 100g
-        defaultUnit: 'g',
-        availableUnits: ['g', 'oz'],
-      }));
+      .map((product: OpenFoodFactsProduct): FoodItem => {
+        const pieceInfo = detectPieceBasedFood(product.product_name);
+
+        if (pieceInfo) {
+          // Piece-based food detected - set up proper serving info
+          return {
+            id: product.code,
+            name: product.product_name,
+            calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
+            protein: Math.round(product.nutriments.proteins_100g || 0),
+            carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
+            fat: Math.round(product.nutriments.fat_100g || 0),
+            servingSize: `1 ${pieceInfo.unit} (${pieceInfo.gramsPerPiece}g)`,
+            servingGrams: 100, // Nutrition is per 100g
+            defaultUnit: pieceInfo.unit,
+            availableUnits: [pieceInfo.unit, 'g', 'oz'],
+            gramsPerCup: pieceInfo.gramsPerPiece, // Store grams per piece here
+          };
+        }
+
+        // Default gram-based food
+        return {
+          id: product.code,
+          name: product.product_name,
+          calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
+          protein: Math.round(product.nutriments.proteins_100g || 0),
+          carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
+          fat: Math.round(product.nutriments.fat_100g || 0),
+          servingSize: '100g',
+          servingGrams: 100, // API returns per 100g
+          defaultUnit: 'g',
+          availableUnits: ['g', 'oz'],
+        };
+      });
   } catch (error) {
     console.error('Error searching foods:', error);
     return [];
@@ -233,20 +328,19 @@ export const lookupBarcode = async (barcode: string): Promise<FoodItem | null> =
     }
 
     // Only use piece-based if we found BOTH a piece count AND gram weight in the serving
+    let detectedUnit: 'piece' | 'slice' = 'piece';
     if (pieceMatch && gramsFromServing > 0) {
       piecesPerServing = parseInt(pieceMatch[1]) || 1;
       gramsPerPiece = gramsFromServing / piecesPerServing;
       isPieceBased = true;
-    } else if (gramsFromServing > 0) {
-      // Special case: product name strongly suggests pieces (nuggets, dinos)
-      // AND serving size has grams but no explicit piece count
-      const isDefinitelyPieces = productName.includes('nugget') ||
-                                  productName.includes('dino') ||
-                                  (productName.includes('buddies') && productName.includes('dino'));
-      if (isDefinitelyPieces) {
-        // Estimate: nuggets are typically 15-25g each
-        gramsPerPiece = 21;
-        piecesPerServing = Math.round(gramsFromServing / gramsPerPiece);
+    } else {
+      // Fallback: use product name detection for common piece-based foods
+      const fullProductName = product.product_name || product.product_name_en || '';
+      const pieceInfo = detectPieceBasedFood(fullProductName);
+      if (pieceInfo) {
+        // Use the detected grams per piece from our common foods database
+        gramsPerPiece = pieceInfo.gramsPerPiece;
+        detectedUnit = pieceInfo.unit;
         isPieceBased = true;
       }
     }
@@ -254,7 +348,7 @@ export const lookupBarcode = async (barcode: string): Promise<FoodItem | null> =
     // Build available units
     const availableUnits: ('g' | 'oz' | 'cup' | 'tbsp' | 'tsp' | 'piece' | 'slice' | 'ml')[] = ['g', 'oz'];
     if (isPieceBased && gramsPerPiece) {
-      availableUnits.unshift('piece'); // Add piece as first option
+      availableUnits.unshift(detectedUnit); // Add piece/slice as first option
     } else {
       availableUnits.push('tbsp');
     }
@@ -262,7 +356,7 @@ export const lookupBarcode = async (barcode: string): Promise<FoodItem | null> =
     // Build a better serving size display for piece-based foods
     let displayServingSize = servingSize;
     if (isPieceBased && gramsPerPiece) {
-      displayServingSize = `1 piece (${Math.round(gramsPerPiece)}g)`;
+      displayServingSize = `1 ${detectedUnit} (${Math.round(gramsPerPiece)}g)`;
     }
 
     return {
@@ -277,7 +371,7 @@ export const lookupBarcode = async (barcode: string): Promise<FoodItem | null> =
       servingSize: displayServingSize,
       // servingGrams = 100 because nutrition values are per 100g
       servingGrams: 100,
-      defaultUnit: isPieceBased && gramsPerPiece ? 'piece' : 'g',
+      defaultUnit: isPieceBased && gramsPerPiece ? detectedUnit : 'g',
       availableUnits,
       // Store grams per piece for piece-based foods, or serving quantity for others
       gramsPerCup: gramsPerPiece || (servingQuantity > 0 ? servingQuantity : undefined),
