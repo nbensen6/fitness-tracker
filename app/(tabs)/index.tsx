@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, TouchableOpacity, ImageBackground, View as RNView, Platform, StatusBar, Image, ImageSourcePropType } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, ImageBackground, View as RNView, Platform, StatusBar, Image, ImageSourcePropType, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, View } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { useClerk } from '@clerk/clerk-expo';
 import { getMealsByDate, getWorkoutsByDate } from '@/services/firestore';
+import { calculateNutrition } from '@/services/foodApi';
 import { Workout } from '@/types';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,12 +15,16 @@ export default function DashboardScreen() {
   const { userId, userProfile, isSignedIn } = useAuth();
   const { signOut } = useClerk();
   const [todayCalories, setTodayCalories] = useState(0);
+  const [todayMacros, setTodayMacros] = useState({ protein: 0, carbs: 0, fat: 0 });
   const [todayWorkouts, setTodayWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const containerMaxWidth = isWeb && width > 768 ? '50%' : '100%';
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
   const calorieGoal = userProfile?.calorieGoal || 2000;
 
   useEffect(() => {
@@ -39,12 +44,32 @@ export default function DashboardScreen() {
         getWorkoutsByDate(userId, today)
       ]);
 
-      const totalCalories = meals.reduce(
-        (sum, meal) => sum + (meal.foodItem.calories * meal.quantity),
-        0
+      const dailyTotals = meals.reduce(
+        (totals, meal) => {
+          let nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+          // Use gramsConsumed if available, otherwise fall back to old calculation
+          if (meal.gramsConsumed && meal.foodItem.servingGrams) {
+            nutrition = calculateNutrition(meal.foodItem, meal.gramsConsumed);
+          } else {
+            nutrition = {
+              calories: meal.foodItem.calories * meal.quantity,
+              protein: meal.foodItem.protein * meal.quantity,
+              carbs: meal.foodItem.carbs * meal.quantity,
+              fat: meal.foodItem.fat * meal.quantity,
+            };
+          }
+          return {
+            calories: totals.calories + Math.min(nutrition.calories, 5000),
+            protein: totals.protein + nutrition.protein,
+            carbs: totals.carbs + nutrition.carbs,
+            fat: totals.fat + nutrition.fat,
+          };
+        },
+        { calories: 0, protein: 0, carbs: 0, fat: 0 }
       );
 
-      setTodayCalories(totalCalories);
+      setTodayCalories(dailyTotals.calories);
+      setTodayMacros({ protein: dailyTotals.protein, carbs: dailyTotals.carbs, fat: dailyTotals.fat });
       setTodayWorkouts(workouts);
     } catch (error) {
       console.error('Error loading data:', error);
@@ -96,7 +121,7 @@ export default function DashboardScreen() {
     >
       <RNView style={[styles.dashboardOverlay, { paddingTop: insets.top }]}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <RNView style={styles.container}>
+          <RNView style={[styles.container, { maxWidth: containerMaxWidth }]}>
           {/* Header with greeting and account button */}
           <RNView style={styles.header}>
             <RNView style={styles.headerLeft}>
@@ -143,6 +168,21 @@ export default function DashboardScreen() {
                   {Math.abs(remainingCalories)}
                 </Text>
                 <Text style={styles.statLabel}>{remainingCalories >= 0 ? 'Left' : 'Over'}</Text>
+              </RNView>
+            </RNView>
+            {/* Macros Row */}
+            <RNView style={styles.macrosRow}>
+              <RNView style={styles.macroItem}>
+                <Text style={styles.macroValue}>{Math.round(todayMacros.protein)}g</Text>
+                <Text style={styles.macroLabel}>Protein</Text>
+              </RNView>
+              <RNView style={styles.macroItem}>
+                <Text style={styles.macroValue}>{Math.round(todayMacros.carbs)}g</Text>
+                <Text style={styles.macroLabel}>Carbs</Text>
+              </RNView>
+              <RNView style={styles.macroItem}>
+                <Text style={styles.macroValue}>{Math.round(todayMacros.fat)}g</Text>
+                <Text style={styles.macroLabel}>Fat</Text>
               </RNView>
             </RNView>
           </LinearGradient>
@@ -226,7 +266,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     alignSelf: 'center',
     width: '100%',
-    maxWidth: '50%',
   },
   heroContainer: {
     flex: 1,
@@ -376,6 +415,27 @@ const styles = StyleSheet.create({
   },
   negative: {
     color: '#ef4444',
+  },
+  macrosRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  macroItem: {
+    alignItems: 'center',
+  },
+  macroValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  macroLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
   },
   quickActions: {
     flexDirection: 'row',

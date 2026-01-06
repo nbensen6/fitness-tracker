@@ -1,14 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ImageBackground, View as RNView, Linking } from 'react-native';
+import { StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ImageBackground, View as RNView, Linking, Platform, useWindowDimensions, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
-import { addWorkout, getRecentWorkouts } from '@/services/firestore';
+import { addWorkout, getRecentWorkouts, updateUserWorkoutPlan, getUserWorkoutPlan } from '@/services/firestore';
 import { Exercise, WorkoutExercise, Workout } from '@/types';
 import { EXERCISES, getExercisesByCategory } from '@/services/workoutDatabase';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, router } from 'expo-router';
 
 export default function WorkoutsScreen() {
   const { userId, isSignedIn } = useAuth();
+  const { width } = useWindowDimensions();
+  const params = useLocalSearchParams<{
+    fromPlan?: string;
+    planId?: string;
+    dayNumber?: string;
+    workoutName?: string;
+    exercises?: string;
+  }>();
+  const isWeb = Platform.OS === 'web';
+  const containerMaxWidth = isWeb && width > 768 ? '50%' : '100%';
   const [workoutName, setWorkoutName] = useState('');
   const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
   const [recentWorkouts, setRecentWorkouts] = useState<Workout[]>([]);
@@ -16,19 +27,70 @@ export default function WorkoutsScreen() {
   const [workoutStarted, setWorkoutStarted] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [exerciseSearch, setExerciseSearch] = useState('');
+  const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
+  const [fromPlan, setFromPlan] = useState(false);
+  const [planDayNumber, setPlanDayNumber] = useState<number | null>(null);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
   const categories = ['all', 'chest', 'back', 'shoulders', 'arms', 'legs', 'core', 'cardio'];
 
-  const filteredExercises = selectedCategory === 'all'
+  const filteredExercises = (selectedCategory === 'all'
     ? EXERCISES
-    : getExercisesByCategory(selectedCategory);
+    : getExercisesByCategory(selectedCategory)
+  ).filter(exercise =>
+    exerciseSearch.trim() === '' ||
+    exercise.name.toLowerCase().includes(exerciseSearch.toLowerCase())
+  );
 
   useEffect(() => {
     if (userId) {
       loadRecentWorkouts();
     }
   }, [userId]);
+
+  // Handle incoming plan data
+  useEffect(() => {
+    if (params.fromPlan === 'true' && params.exercises) {
+      try {
+        const planExercises = JSON.parse(params.exercises);
+        const workoutExs: WorkoutExercise[] = planExercises.map((ex: any) => {
+          // Find the full exercise from database or create minimal version
+          const fullExercise = EXERCISES.find(e => e.id === ex.exerciseId) || {
+            id: ex.exerciseId,
+            name: ex.exerciseName,
+            category: ex.category || 'other',
+            equipment: ex.equipment || 'bodyweight',
+          };
+
+          // Create sets with target reps pre-filled
+          const sets = Array.from({ length: ex.targetSets }, () => ({
+            reps: ex.targetReps,
+            weight: 0,
+            completed: false,
+          }));
+
+          return {
+            exercise: fullExercise,
+            sets,
+            targetReps: ex.targetReps,
+          };
+        });
+
+        setWorkoutExercises(workoutExs);
+        setWorkoutName(params.workoutName || 'Plan Workout');
+        setWorkoutStarted(true);
+        setStartTime(new Date());
+        setFromPlan(true);
+        setPlanDayNumber(parseInt(params.dayNumber || '0'));
+
+        // Clear the params to prevent re-triggering
+        router.setParams({ fromPlan: undefined, exercises: undefined });
+      } catch (error) {
+        console.error('Error parsing plan exercises:', error);
+      }
+    }
+  }, [params.fromPlan, params.exercises]);
 
   const loadRecentWorkouts = async () => {
     if (!userId) return;
@@ -43,7 +105,8 @@ export default function WorkoutsScreen() {
   const startWorkout = () => {
     setWorkoutStarted(true);
     setStartTime(new Date());
-    setWorkoutName(`Workout - ${new Date().toLocaleDateString()}`);
+    const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+    setWorkoutName(dayName);
   };
 
   const addExercise = (exercise: Exercise) => {
@@ -53,6 +116,7 @@ export default function WorkoutsScreen() {
     };
     setWorkoutExercises([...workoutExercises, newExercise]);
     setShowExerciseList(false);
+    setExerciseSearch('');
   };
 
   const addSet = (exerciseIndex: number) => {
@@ -75,6 +139,16 @@ export default function WorkoutsScreen() {
     const updated = [...workoutExercises];
     updated[exerciseIndex].sets[setIndex][field] = parseInt(value) || 0;
     setWorkoutExercises(updated);
+  };
+
+  const applyWeightToAll = (exerciseIndex: number, weight: number) => {
+    const updated = [...workoutExercises];
+    updated[exerciseIndex].sets = updated[exerciseIndex].sets.map(set => ({
+      ...set,
+      weight,
+    }));
+    setWorkoutExercises(updated);
+    Keyboard.dismiss();
   };
 
   const toggleSetComplete = (exerciseIndex: number, setIndex: number) => {
@@ -112,11 +186,33 @@ export default function WorkoutsScreen() {
         completed: true,
       });
 
+      // If this workout came from a plan, mark the day as complete
+      if (fromPlan && planDayNumber) {
+        try {
+          const userPlan = await getUserWorkoutPlan(userId);
+          if (userPlan) {
+            const newCompletedDays = userPlan.completedDays.includes(planDayNumber)
+              ? userPlan.completedDays
+              : [...userPlan.completedDays, planDayNumber];
+            const nextDay = planDayNumber >= userPlan.plan.days.length ? 1 : planDayNumber + 1;
+
+            await updateUserWorkoutPlan(userPlan.id, {
+              completedDays: newCompletedDays,
+              currentDay: nextDay,
+            });
+          }
+        } catch (err) {
+          console.error('Error updating plan:', err);
+        }
+      }
+
       Alert.alert('Workout Saved', `Great job! Duration: ${duration} minutes`);
       setWorkoutStarted(false);
       setWorkoutExercises([]);
       setWorkoutName('');
       setStartTime(null);
+      setFromPlan(false);
+      setPlanDayNumber(null);
       loadRecentWorkouts();
     } catch (error) {
       console.error('Error saving workout:', error);
@@ -135,6 +231,8 @@ export default function WorkoutsScreen() {
           setWorkoutExercises([]);
           setWorkoutName('');
           setStartTime(null);
+          setFromPlan(false);
+          setPlanDayNumber(null);
         },
       },
     ]);
@@ -159,7 +257,7 @@ export default function WorkoutsScreen() {
       >
         <RNView style={styles.overlay}>
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-            <RNView style={styles.container}>
+            <RNView style={[styles.container, { maxWidth: containerMaxWidth }]}>
               <Text style={styles.title}>Workouts</Text>
 
               <TouchableOpacity onPress={startWorkout}>
@@ -174,18 +272,65 @@ export default function WorkoutsScreen() {
                   <Text style={styles.emptyText}>No recent workouts</Text>
                 ) : (
                   recentWorkouts.map((workout) => (
-                    <RNView key={workout.id} style={styles.workoutCard}>
+                    <TouchableOpacity
+                      key={workout.id}
+                      style={styles.workoutCard}
+                      onPress={() => setSelectedWorkout(workout)}
+                    >
                       <RNView style={styles.workoutInfo}>
                         <Text style={styles.workoutName}>{workout.name}</Text>
                         <Text style={styles.workoutDetails}>
                           {workout.exercises.length} exercises | {workout.duration} min
                         </Text>
                       </RNView>
-                      <Text style={styles.workoutDate}>{workout.date}</Text>
-                    </RNView>
+                      <Text style={styles.workoutArrow}>›</Text>
+                    </TouchableOpacity>
                   ))
                 )}
               </LinearGradient>
+
+              {/* Workout Details Modal */}
+              {selectedWorkout && (
+                <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.workoutDetailsModal}>
+                  <RNView style={styles.modalHeader}>
+                    <RNView>
+                      <Text style={styles.modalTitle}>{selectedWorkout.name}</Text>
+                      <Text style={styles.workoutDetailsDate}>
+                        {new Date(selectedWorkout.date + 'T00:00:00').toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </Text>
+                    </RNView>
+                    <TouchableOpacity onPress={() => setSelectedWorkout(null)}>
+                      <Text style={styles.closeButton}>Close</Text>
+                    </TouchableOpacity>
+                  </RNView>
+
+                  <Text style={styles.workoutDetailsDuration}>
+                    Duration: {selectedWorkout.duration} minutes
+                  </Text>
+
+                  <ScrollView style={styles.workoutDetailsExercises}>
+                    {selectedWorkout.exercises.map((workoutExercise, index) => (
+                      <RNView key={index} style={styles.detailExerciseCard}>
+                        <Text style={styles.detailExerciseName}>{workoutExercise.exercise.name}</Text>
+                        <RNView style={styles.detailSetsContainer}>
+                          {workoutExercise.sets.map((set, setIndex) => (
+                            <RNView key={setIndex} style={styles.detailSetRow}>
+                              <Text style={styles.detailSetText}>Set {setIndex + 1}</Text>
+                              <Text style={styles.detailSetText}>{set.weight} lbs</Text>
+                              <Text style={styles.detailSetText}>{set.reps} reps</Text>
+                            </RNView>
+                          ))}
+                        </RNView>
+                      </RNView>
+                    ))}
+                  </ScrollView>
+                </LinearGradient>
+              )}
             </RNView>
           </ScrollView>
         </RNView>
@@ -201,8 +346,13 @@ export default function WorkoutsScreen() {
     >
       <RNView style={styles.overlay}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          <RNView style={styles.container}>
+          <RNView style={[styles.container, { maxWidth: containerMaxWidth }]}>
             {/* Workout Header */}
+            {fromPlan && (
+              <RNView style={styles.planBadge}>
+                <Text style={styles.planBadgeText}>From Plan - Day {planDayNumber}</Text>
+              </RNView>
+            )}
             <TextInput
               style={styles.workoutNameInput}
               value={workoutName}
@@ -230,13 +380,17 @@ export default function WorkoutsScreen() {
                     <Text style={styles.removeText}>Remove</Text>
                   </TouchableOpacity>
                 </RNView>
+                {(workoutExercise as any).targetReps && (
+                  <Text style={styles.targetRepsHint}>
+                    Target: {workoutExercise.sets.length} sets × {(workoutExercise as any).targetReps} reps
+                  </Text>
+                )}
 
                 {/* Sets */}
                 <RNView style={styles.setsHeader}>
                   <Text style={styles.setHeaderText}>Set</Text>
                   <Text style={styles.setHeaderText}>Weight</Text>
                   <Text style={styles.setHeaderText}>Reps</Text>
-                  <Text style={styles.setHeaderText}>Done</Text>
                 </RNView>
 
                 {workoutExercise.sets.map((set, setIndex) => (
@@ -262,26 +416,25 @@ export default function WorkoutsScreen() {
                       placeholder="0"
                       placeholderTextColor="#64748b"
                     />
-                    <TouchableOpacity
-                      style={[
-                        styles.checkButton,
-                        set.completed && styles.checkButtonActive,
-                      ]}
-                      onPress={() => toggleSetComplete(exerciseIndex, setIndex)}
-                    >
-                      <Text style={[styles.checkText, set.completed && styles.checkTextActive]}>
-                        {set.completed ? '✓' : ''}
-                      </Text>
-                    </TouchableOpacity>
                   </RNView>
                 ))}
 
-                <TouchableOpacity
-                  style={styles.addSetButton}
-                  onPress={() => addSet(exerciseIndex)}
-                >
-                  <Text style={styles.addSetText}>+ Add Set</Text>
-                </TouchableOpacity>
+                <RNView style={styles.exerciseActions}>
+                  <TouchableOpacity
+                    style={styles.addSetButton}
+                    onPress={() => addSet(exerciseIndex)}
+                  >
+                    <Text style={styles.addSetText}>+ Add Set</Text>
+                  </TouchableOpacity>
+                  {workoutExercise.sets.length > 1 && workoutExercise.sets[0].weight > 0 && (
+                    <TouchableOpacity
+                      style={styles.applyAllButton}
+                      onPress={() => applyWeightToAll(exerciseIndex, workoutExercise.sets[0].weight)}
+                    >
+                      <Text style={styles.applyAllText}>Apply {workoutExercise.sets[0].weight} to all</Text>
+                    </TouchableOpacity>
+                  )}
+                </RNView>
               </LinearGradient>
             ))}
 
@@ -297,10 +450,24 @@ export default function WorkoutsScreen() {
               <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.exerciseListModal}>
                 <RNView style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Select Exercise</Text>
-                  <TouchableOpacity onPress={() => setShowExerciseList(false)}>
+                  <TouchableOpacity onPress={() => {
+                    setShowExerciseList(false);
+                    setExerciseSearch('');
+                  }}>
                     <Text style={styles.closeButton}>Close</Text>
                   </TouchableOpacity>
                 </RNView>
+
+                {/* Search Bar */}
+                <TextInput
+                  style={styles.exerciseSearchInput}
+                  value={exerciseSearch}
+                  onChangeText={setExerciseSearch}
+                  placeholder="Search exercises..."
+                  placeholderTextColor="#64748b"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
 
                 {/* Category Filter */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -318,27 +485,31 @@ export default function WorkoutsScreen() {
                 </ScrollView>
 
                 <ScrollView style={styles.exerciseList}>
-                  {filteredExercises.map((exercise) => (
-                    <TouchableOpacity
-                      key={exercise.id}
-                      style={styles.exerciseOption}
-                      onPress={() => addExercise(exercise)}
-                    >
-                      <RNView style={styles.exerciseOptionInfo}>
-                        <Text style={styles.exerciseOptionName}>{exercise.name}</Text>
-                        <Text style={styles.exerciseOptionCategory}>
-                          {exercise.category} | {exercise.equipment}
-                          {exercise.difficulty && ` | ${exercise.difficulty}`}
-                        </Text>
-                      </RNView>
+                  {filteredExercises.length === 0 ? (
+                    <Text style={styles.noResultsText}>No exercises found</Text>
+                  ) : (
+                    filteredExercises.map((exercise) => (
                       <TouchableOpacity
-                        style={styles.videoIconButton}
-                        onPress={() => openYouTubeSearch(exercise.name)}
+                        key={exercise.id}
+                        style={styles.exerciseOption}
+                        onPress={() => addExercise(exercise)}
                       >
-                        <Text style={styles.videoIcon}>▶</Text>
+                        <RNView style={styles.exerciseOptionInfo}>
+                          <Text style={styles.exerciseOptionName}>{exercise.name}</Text>
+                          <Text style={styles.exerciseOptionCategory}>
+                            {exercise.category} | {exercise.equipment}
+                            {exercise.difficulty && ` | ${exercise.difficulty}`}
+                          </Text>
+                        </RNView>
+                        <TouchableOpacity
+                          style={styles.videoIconButton}
+                          onPress={() => openYouTubeSearch(exercise.name)}
+                        >
+                          <Text style={styles.videoIcon}>▶</Text>
+                        </TouchableOpacity>
                       </TouchableOpacity>
-                    </TouchableOpacity>
-                  ))}
+                    ))
+                  )}
                 </ScrollView>
               </LinearGradient>
             )}
@@ -348,9 +519,12 @@ export default function WorkoutsScreen() {
               <TouchableOpacity style={styles.cancelButton} onPress={cancelWorkout}>
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.doneButton} onPress={() => Keyboard.dismiss()}>
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
               <TouchableOpacity onPress={finishWorkout}>
                 <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.finishButton}>
-                  <Text style={styles.finishButtonText}>Finish Workout</Text>
+                  <Text style={styles.finishButtonText}>Finish</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </RNView>
@@ -383,7 +557,6 @@ const styles = StyleSheet.create({
     paddingTop: 40,
     alignSelf: 'center',
     width: '100%',
-    maxWidth: '50%',
   },
   messageContainer: {
     flex: 1,
@@ -450,9 +623,70 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 4,
   },
-  workoutDate: {
-    fontSize: 12,
+  workoutArrow: {
+    fontSize: 24,
+    color: '#64748b',
+    fontWeight: '300',
+  },
+  workoutDetailsModal: {
+    borderRadius: 16,
+    padding: 18,
+    marginTop: 16,
+    maxHeight: 400,
+  },
+  workoutDetailsDate: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  workoutDetailsDuration: {
+    fontSize: 14,
     color: '#4ade80',
+    marginBottom: 12,
+  },
+  workoutDetailsExercises: {
+    maxHeight: 280,
+  },
+  detailExerciseCard: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  detailExerciseName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  detailSetsContainer: {
+    gap: 4,
+  },
+  detailSetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#374151',
+  },
+  detailSetText: {
+    fontSize: 13,
+    color: '#94a3b8',
+    flex: 1,
+    textAlign: 'center',
+  },
+  planBadge: {
+    backgroundColor: '#e94560',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  planBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   workoutNameInput: {
     fontSize: 20,
@@ -464,6 +698,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     borderWidth: 1,
     borderColor: '#374151',
+  },
+  targetRepsHint: {
+    color: '#4ade80',
+    fontSize: 12,
+    marginBottom: 12,
+    fontWeight: '500',
   },
   exerciseCard: {
     borderRadius: 16,
@@ -535,34 +775,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#374151',
   },
-  checkButton: {
-    flex: 1,
-    backgroundColor: '#1a1a2e',
-    borderRadius: 8,
-    padding: 10,
+  exerciseActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginLeft: 4,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  checkButtonActive: {
-    backgroundColor: '#22c55e',
-    borderColor: '#22c55e',
-  },
-  checkText: {
-    fontWeight: 'bold',
-    color: '#64748b',
-  },
-  checkTextActive: {
-    color: '#fff',
+    marginTop: 8,
   },
   addSetButton: {
-    marginTop: 8,
     padding: 8,
   },
   addSetText: {
     color: '#3b82f6',
-    textAlign: 'center',
+    fontWeight: '600',
+  },
+  applyAllButton: {
+    backgroundColor: '#4ade80',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  applyAllText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '600',
   },
   addExerciseButton: {
@@ -598,6 +832,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  exerciseSearchInput: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
   categoryScroll: {
     marginBottom: 12,
   },
@@ -621,6 +865,12 @@ const styles = StyleSheet.create({
   },
   exerciseList: {
     maxHeight: 350,
+  },
+  noResultsText: {
+    textAlign: 'center',
+    color: '#64748b',
+    paddingVertical: 20,
+    fontSize: 14,
   },
   exerciseOption: {
     flexDirection: 'row',
@@ -671,8 +921,19 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontWeight: '600',
   },
+  doneButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 10,
+    backgroundColor: '#2d2d44',
+    alignItems: 'center',
+  },
+  doneButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   finishButton: {
-    flex: 2,
+    flex: 1,
     padding: 16,
     borderRadius: 10,
     alignItems: 'center',

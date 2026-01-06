@@ -34,9 +34,9 @@ const getWeekDays = (startOfWeek: Date) => {
   return days;
 };
 
-// Format date to ISO string (YYYY-MM-DD)
+// Format date to ISO string (YYYY-MM-DD) in local timezone
 const formatDateToISO = (date: Date) => {
-  return date.toISOString().split('T')[0];
+  return date.toLocaleDateString('en-CA');
 };
 
 // Format date for display
@@ -165,7 +165,7 @@ export default function WeeklyLogScreen() {
         {/* Header */}
         <RNView style={styles.header}>
           <TouchableOpacity onPress={() => router.push('/(tabs)/calories')} style={styles.backButton}>
-            <Text style={styles.backArrow}>{"< Log"}</Text>
+            <Text style={styles.backArrow}>{"←"}</Text>
           </TouchableOpacity>
           <Text style={styles.title}>History</Text>
           <RNView style={styles.headerSpacer} />
@@ -243,33 +243,42 @@ export default function WeeklyLogScreen() {
                       {dayMeals.length === 0 ? 'No meals logged' : `${dayMeals.length} meal${dayMeals.length !== 1 ? 's' : ''} logged`}
                     </Text>
 
-                    {/* Expanded Meal List */}
+                    {/* Expanded Meal List - Grouped by Meal Type */}
                     {isExpanded && dayMeals.length > 0 && (
                       <RNView style={styles.mealList}>
-                        {dayMeals.map((meal) => {
-                          const mealCalories = meal.gramsConsumed && meal.foodItem.servingGrams
-                            ? calculateNutrition(meal.foodItem, meal.gramsConsumed).calories
-                            : meal.foodItem.calories * meal.quantity;
-                          const displayAmount = meal.unit
-                            ? `${meal.quantity} ${meal.unit}`
-                            : `${meal.quantity} serving`;
+                        {(['breakfast', 'lunch', 'dinner', 'snack'] as const).map((mealType) => {
+                          const mealsOfType = dayMeals.filter(m => m.mealType === mealType);
+                          if (mealsOfType.length === 0) return null;
                           return (
-                            <RNView key={meal.id} style={styles.mealItem}>
-                              <RNView style={styles.mealInfo}>
-                                <Text style={styles.mealName}>{meal.foodItem.name}</Text>
-                                <Text style={styles.mealDetails}>
-                                  {meal.mealType.charAt(0).toUpperCase() + meal.mealType.slice(1)} - {displayAmount}
-                                </Text>
-                              </RNView>
-                              <RNView style={styles.mealRight}>
-                                <Text style={styles.mealCalories}>{mealCalories} cal</Text>
-                                <TouchableOpacity
-                                  style={styles.deleteButton}
-                                  onPress={() => handleDeleteMeal(meal.id)}
-                                >
-                                  <Text style={styles.deleteButtonText}>X</Text>
-                                </TouchableOpacity>
-                              </RNView>
+                            <RNView key={mealType} style={styles.mealTypeGroup}>
+                              <Text style={styles.mealTypeHeader}>
+                                {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
+                              </Text>
+                              {mealsOfType.map((meal) => {
+                                const mealCalories = meal.gramsConsumed && meal.foodItem.servingGrams
+                                  ? calculateNutrition(meal.foodItem, meal.gramsConsumed).calories
+                                  : meal.foodItem.calories * meal.quantity;
+                                const displayAmount = meal.unit
+                                  ? `${meal.quantity} ${meal.unit}`
+                                  : `${meal.quantity} serving`;
+                                return (
+                                  <RNView key={meal.id} style={styles.mealItem}>
+                                    <RNView style={styles.mealInfo}>
+                                      <Text style={styles.mealName}>{meal.foodItem.name}</Text>
+                                      <Text style={styles.mealDetails}>{displayAmount}</Text>
+                                    </RNView>
+                                    <RNView style={styles.mealRight}>
+                                      <Text style={styles.mealCalories}>{mealCalories} cal</Text>
+                                      <TouchableOpacity
+                                        style={styles.deleteButton}
+                                        onPress={() => handleDeleteMeal(meal.id)}
+                                      >
+                                        <Text style={styles.deleteButtonText}>X</Text>
+                                      </TouchableOpacity>
+                                    </RNView>
+                                  </RNView>
+                                );
+                              })}
                             </RNView>
                           );
                         })}
@@ -471,6 +480,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#374151',
     paddingTop: 12,
+  },
+  mealTypeGroup: {
+    marginBottom: 12,
+  },
+  mealTypeHeader: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
+    marginBottom: 8,
+    textTransform: 'capitalize',
   },
   mealItem: {
     flexDirection: 'row',

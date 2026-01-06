@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, View as RNView, ActivityIndicator, ImageBackground, Image } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, View as RNView, ActivityIndicator, ImageBackground, Image, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useSignIn, useSignUp } from '@clerk/clerk-expo';
 import { router } from 'expo-router';
@@ -9,6 +9,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export default function LoginScreen() {
   const { signIn, setActive: setSignInActive, isLoaded: signInLoaded } = useSignIn();
   const { signUp, setActive: setSignUpActive, isLoaded: signUpLoaded } = useSignUp();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const contentMaxWidth = isWeb && width > 768 ? '50%' : '100%';
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -365,7 +368,7 @@ export default function LoginScreen() {
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-        <RNView style={styles.content}>
+        <RNView style={[styles.content, { maxWidth: contentMaxWidth }]}>
           <Text style={styles.title}>LIFTr</Text>
           <Text style={styles.subtitle}>
             {!clerkReady
@@ -652,7 +655,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'center',
     width: '100%',
-    maxWidth: '50%',
   },
   topRightLogo: {
     position: 'absolute',

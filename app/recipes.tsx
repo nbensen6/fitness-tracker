@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, ScrollView, TouchableOpacity, View as RNView, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, View as RNView, TextInput, Modal, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRecipes, addRecipe, deleteRecipe, addMealEntry, updateRecipe } from '@/services/firestore';
@@ -182,6 +182,17 @@ export default function RecipesScreen() {
     setShowCreateModal(true);
   };
 
+  // Open Add Ingredient modal with reset state
+  const openAddIngredientModal = () => {
+    setSelectedFood(null);
+    setSearchQuery('');
+    setSearchResults(commonFoods.slice(0, 10));
+    setQuantity('1');
+    setSelectedUnit('g');
+    setShowScanner(false);
+    setShowAddIngredientModal(true);
+  };
+
   // Barcode scanning
   const handleBarcodeScan = async ({ data }: { data: string }) => {
     if (scanningBarcode) return;
@@ -192,8 +203,10 @@ export default function RecipesScreen() {
       if (food) {
         setShowScanner(false);
         setSelectedFood(food);
-        setQuantity('1');
-        setSelectedUnit(food.defaultUnit || 'g');
+        // Default to product's serving size (stored in gramsPerCup) or 100g
+        const defaultServingGrams = food.gramsPerCup || 100;
+        setQuantity(defaultServingGrams.toString());
+        setSelectedUnit('g');
       } else {
         Alert.alert('Not Found', 'Could not find nutritional info for this barcode.');
       }
@@ -219,7 +232,7 @@ export default function RecipesScreen() {
   const useRecipe = async (recipe: Recipe) => {
     if (!userId) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
 
     try {
       // Add each ingredient as a separate meal entry
@@ -283,8 +296,8 @@ export default function RecipesScreen() {
       <RNView style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header */}
         <RNView style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/calories')} style={styles.backButton}>
-            <Text style={styles.backArrow}>{"< Log"}</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Text style={styles.backArrow}>{"←"}</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Recipes</Text>
           <TouchableOpacity onPress={() => setShowCreateModal(true)}>
@@ -352,261 +365,262 @@ export default function RecipesScreen() {
         )}
 
         {/* Create/Edit Recipe Modal */}
-        <Modal visible={showCreateModal} animationType="slide" transparent={true}>
-          <RNView style={styles.modalOverlay}>
-            <RNView style={[styles.modalContent, { paddingTop: insets.top + 20 }]}>
-              <RNView style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{editingRecipe ? 'Edit Recipe' : 'New Recipe'}</Text>
-                <TouchableOpacity onPress={() => {
-                  setShowCreateModal(false);
-                  setRecipeName('');
-                  setRecipeIngredients([]);
-                  setEditingRecipe(null);
-                }}>
-                  <Text style={styles.closeButton}>X</Text>
-                </TouchableOpacity>
-              </RNView>
-
-              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-                {/* Recipe Name */}
-                <Text style={styles.inputLabel}>Recipe Name</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={recipeName}
-                  onChangeText={setRecipeName}
-                  placeholder="e.g., Morning Protein Shake"
-                  placeholderTextColor="#64748b"
-                />
-
-                {/* Meal Type */}
-                <Text style={styles.inputLabel}>Default Meal Type</Text>
-                <RNView style={styles.mealTypeSelector}>
-                  {mealTypes.map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={[styles.mealTypeButton, recipeMealType === type && styles.mealTypeActive]}
-                      onPress={() => setRecipeMealType(type)}
-                    >
-                      <Text style={[styles.mealTypeText, recipeMealType === type && styles.mealTypeTextActive]}>
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </RNView>
-
-                {/* Ingredients */}
-                <RNView style={styles.ingredientsHeader}>
-                  <Text style={styles.inputLabel}>Ingredients</Text>
-                  <TouchableOpacity onPress={() => setShowAddIngredientModal(true)}>
-                    <LinearGradient colors={['#3b82f6', '#60a5fa']} style={styles.addIngredientButton}>
-                      <Text style={styles.addIngredientText}>+ Add</Text>
-                    </LinearGradient>
+        <Modal visible={showCreateModal} animationType="slide" presentationStyle="pageSheet">
+          <RNView style={[styles.ingredientModalContainer, { paddingTop: insets.top + 20 }]}>
+            {!showAddIngredientModal ? (
+              <>
+                <RNView style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{editingRecipe ? 'Edit Recipe' : 'New Recipe'}</Text>
+                  <TouchableOpacity onPress={() => {
+                    setShowCreateModal(false);
+                    setRecipeName('');
+                    setRecipeIngredients([]);
+                    setEditingRecipe(null);
+                  }}>
+                    <Text style={styles.closeButton}>X</Text>
                   </TouchableOpacity>
                 </RNView>
 
-                {recipeIngredients.length === 0 ? (
-                  <Text style={styles.noIngredientsText}>No ingredients added yet</Text>
-                ) : (
-                  recipeIngredients.map((ing, index) => {
-                    const nutrition = calculateNutrition(ing.foodItem, ing.gramsConsumed);
-                    return (
-                      <RNView key={index} style={styles.ingredientItem}>
-                        <RNView style={styles.ingredientInfo}>
-                          <Text style={styles.ingredientName}>{ing.foodItem.name}</Text>
-                          <Text style={styles.ingredientAmount}>
-                            {ing.quantity} {ing.unit} - {nutrition.calories} cal
-                          </Text>
-                        </RNView>
-                        <TouchableOpacity onPress={() => removeIngredient(index)}>
-                          <Text style={styles.removeIngredient}>X</Text>
-                        </TouchableOpacity>
-                      </RNView>
-                    );
-                  })
-                )}
+                <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                  {/* Recipe Name */}
+                  <Text style={styles.inputLabel}>Recipe Name</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={recipeName}
+                    onChangeText={setRecipeName}
+                    placeholder="e.g., Morning Protein Shake"
+                    placeholderTextColor="#64748b"
+                  />
 
-                {/* Totals */}
-                {recipeIngredients.length > 0 && (
-                  <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.totalsCard}>
-                    <Text style={styles.totalsTitle}>Recipe Totals</Text>
-                    <RNView style={styles.totalsRow}>
-                      <RNView style={styles.totalItem}>
-                        <Text style={styles.totalValue}>{calculateRecipeTotals().calories}</Text>
-                        <Text style={styles.totalLabel}>cal</Text>
-                      </RNView>
-                      <RNView style={styles.totalItem}>
-                        <Text style={styles.totalValue}>{calculateRecipeTotals().protein}g</Text>
-                        <Text style={styles.totalLabel}>protein</Text>
-                      </RNView>
-                      <RNView style={styles.totalItem}>
-                        <Text style={styles.totalValue}>{calculateRecipeTotals().carbs}g</Text>
-                        <Text style={styles.totalLabel}>carbs</Text>
-                      </RNView>
-                      <RNView style={styles.totalItem}>
-                        <Text style={styles.totalValue}>{calculateRecipeTotals().fat}g</Text>
-                        <Text style={styles.totalLabel}>fat</Text>
-                      </RNView>
-                    </RNView>
-                  </LinearGradient>
-                )}
-
-                {/* Save Button */}
-                <TouchableOpacity onPress={saveRecipe} style={styles.saveButton}>
-                  <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.saveButtonGradient}>
-                    <Text style={styles.saveButtonText}>Save Recipe</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </ScrollView>
-            </RNView>
-          </RNView>
-        </Modal>
-
-        {/* Add Ingredient Modal */}
-        <Modal visible={showAddIngredientModal} animationType="slide" transparent={true}>
-          <RNView style={styles.modalOverlay}>
-            <RNView style={[styles.modalContent, { paddingTop: insets.top + 20 }]}>
-              <RNView style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Ingredient</Text>
-                <TouchableOpacity onPress={() => {
-                  setShowAddIngredientModal(false);
-                  setSelectedFood(null);
-                  setSearchQuery('');
-                  setShowScanner(false);
-                }}>
-                  <Text style={styles.closeButton}>X</Text>
-                </TouchableOpacity>
-              </RNView>
-
-              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
-                {showScanner ? (
-                  <RNView style={styles.scannerContainer}>
-                    <CameraView
-                      style={styles.scanner}
-                      barcodeScannerSettings={{
-                        barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'],
-                      }}
-                      onBarcodeScanned={handleBarcodeScan}
-                    />
-                    {scanningBarcode && (
-                      <RNView style={styles.scanningOverlay}>
-                        <ActivityIndicator size="large" color="#fff" />
-                        <Text style={styles.scanningText}>Looking up product...</Text>
-                      </RNView>
-                    )}
-                    <TouchableOpacity style={styles.closeScannerButton} onPress={() => setShowScanner(false)}>
-                      <Text style={styles.closeScannerText}>Cancel Scan</Text>
-                    </TouchableOpacity>
-                  </RNView>
-                ) : !selectedFood ? (
-                  <>
-                    {/* Search */}
-                    <RNView style={styles.searchRow}>
-                      <TextInput
-                        style={styles.searchInputFull}
-                        value={searchQuery}
-                        onChangeText={handleSearch}
-                        placeholder="Search food..."
-                        placeholderTextColor="#64748b"
-                        autoCorrect={false}
-                      />
-                    </RNView>
-
-                    {/* Scan Button */}
-                    <TouchableOpacity onPress={openScanner} style={styles.scanButton}>
-                      <LinearGradient colors={['#3b82f6', '#60a5fa']} style={styles.scanButtonGradient}>
-                        <Text style={styles.scanButtonText}>Scan Barcode</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-
-                    {/* Food List */}
-                    {searchResults.map((food) => (
+                  {/* Meal Type */}
+                  <Text style={styles.inputLabel}>Default Meal Type</Text>
+                  <RNView style={styles.mealTypeSelector}>
+                    {mealTypes.map((type) => (
                       <TouchableOpacity
-                        key={food.id}
-                        style={styles.foodItem}
-                        onPress={() => selectFoodForIngredient(food)}
+                        key={type}
+                        style={[styles.mealTypeButton, recipeMealType === type && styles.mealTypeActive]}
+                        onPress={() => setRecipeMealType(type)}
                       >
-                        <RNView style={styles.foodInfo}>
-                          <Text style={styles.foodName}>{food.name}</Text>
-                          <Text style={styles.foodMacros}>
-                            P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
-                          </Text>
-                        </RNView>
-                        <RNView style={styles.foodCalories}>
-                          <Text style={styles.foodCalorieValue}>{food.calories}</Text>
-                          <Text style={styles.foodCalorieLabel}>cal</Text>
-                        </RNView>
+                        <Text style={[styles.mealTypeText, recipeMealType === type && styles.mealTypeTextActive]}>
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
+                        </Text>
                       </TouchableOpacity>
                     ))}
-                  </>
-                ) : (
-                  <>
-                    {/* Selected Food */}
-                    <Text style={styles.selectedFoodName}>{selectedFood.name}</Text>
-                    <Text style={styles.selectedFoodServing}>Serving: {selectedFood.servingSize}</Text>
+                  </RNView>
 
-                    {/* Quantity Input */}
-                    <Text style={styles.inputLabel}>Amount</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={quantity}
-                      onChangeText={setQuantity}
-                      keyboardType="decimal-pad"
-                      placeholder="Amount"
-                      placeholderTextColor="#64748b"
-                    />
+                  {/* Ingredients */}
+                  <RNView style={styles.ingredientsHeader}>
+                    <Text style={styles.inputLabel}>Ingredients</Text>
+                    <TouchableOpacity onPress={openAddIngredientModal}>
+                      <LinearGradient colors={['#3b82f6', '#60a5fa']} style={styles.addIngredientButton}>
+                        <Text style={styles.addIngredientText}>+ Add</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </RNView>
 
-                    {/* Unit Selector */}
-                    <Text style={styles.inputLabel}>Unit</Text>
-                    <RNView style={styles.unitSelector}>
-                      {(selectedFood.availableUnits || ['g', 'oz']).map((unit) => (
+                  {recipeIngredients.length === 0 ? (
+                    <Text style={styles.noIngredientsText}>No ingredients added yet</Text>
+                  ) : (
+                    recipeIngredients.map((ing, index) => {
+                      const nutrition = calculateNutrition(ing.foodItem, ing.gramsConsumed);
+                      return (
+                        <RNView key={index} style={styles.ingredientItem}>
+                          <RNView style={styles.ingredientInfo}>
+                            <Text style={styles.ingredientName}>{ing.foodItem.name}</Text>
+                            <Text style={styles.ingredientAmount}>
+                              {ing.quantity} {ing.unit} - {nutrition.calories} cal
+                            </Text>
+                          </RNView>
+                          <TouchableOpacity onPress={() => removeIngredient(index)}>
+                            <Text style={styles.removeIngredient}>X</Text>
+                          </TouchableOpacity>
+                        </RNView>
+                      );
+                    })
+                  )}
+
+                  {/* Totals */}
+                  {recipeIngredients.length > 0 && (
+                    <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.totalsCard}>
+                      <Text style={styles.totalsTitle}>Recipe Totals</Text>
+                      <RNView style={styles.totalsRow}>
+                        <RNView style={styles.totalItem}>
+                          <Text style={styles.totalValue}>{calculateRecipeTotals().calories}</Text>
+                          <Text style={styles.totalLabel}>cal</Text>
+                        </RNView>
+                        <RNView style={styles.totalItem}>
+                          <Text style={styles.totalValue}>{calculateRecipeTotals().protein}g</Text>
+                          <Text style={styles.totalLabel}>protein</Text>
+                        </RNView>
+                        <RNView style={styles.totalItem}>
+                          <Text style={styles.totalValue}>{calculateRecipeTotals().carbs}g</Text>
+                          <Text style={styles.totalLabel}>carbs</Text>
+                        </RNView>
+                        <RNView style={styles.totalItem}>
+                          <Text style={styles.totalValue}>{calculateRecipeTotals().fat}g</Text>
+                          <Text style={styles.totalLabel}>fat</Text>
+                        </RNView>
+                      </RNView>
+                    </LinearGradient>
+                  )}
+
+                  {/* Save Button */}
+                  <TouchableOpacity onPress={saveRecipe} style={styles.saveButton}>
+                    <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.saveButtonGradient}>
+                      <Text style={styles.saveButtonText}>Save Recipe</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </ScrollView>
+              </>
+            ) : (
+              <>
+                <RNView style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Add Ingredient</Text>
+                  <TouchableOpacity onPress={() => {
+                    Keyboard.dismiss();
+                    setShowAddIngredientModal(false);
+                    setSelectedFood(null);
+                    setSearchQuery('');
+                    setShowScanner(false);
+                  }}>
+                    <Text style={styles.closeButton}>X</Text>
+                  </TouchableOpacity>
+                </RNView>
+
+                <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  {showScanner ? (
+                    <RNView style={styles.scannerContainer}>
+                      <CameraView
+                        style={styles.scanner}
+                        barcodeScannerSettings={{
+                          barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'],
+                        }}
+                        onBarcodeScanned={handleBarcodeScan}
+                      />
+                      {scanningBarcode && (
+                        <RNView style={styles.scanningOverlay}>
+                          <ActivityIndicator size="large" color="#fff" />
+                          <Text style={styles.scanningText}>Looking up product...</Text>
+                        </RNView>
+                      )}
+                      <TouchableOpacity style={styles.closeScannerButton} onPress={() => setShowScanner(false)}>
+                        <Text style={styles.closeScannerText}>Cancel Scan</Text>
+                      </TouchableOpacity>
+                    </RNView>
+                  ) : !selectedFood ? (
+                    <>
+                      {/* Search */}
+                      <RNView style={styles.searchRow}>
+                        <TextInput
+                          style={styles.searchInputFull}
+                          value={searchQuery}
+                          onChangeText={handleSearch}
+                          placeholder="Search food..."
+                          placeholderTextColor="#64748b"
+                          autoCorrect={false}
+                        />
+                      </RNView>
+
+                      {/* Scan Button */}
+                      <TouchableOpacity onPress={openScanner} style={styles.scanButton}>
+                        <LinearGradient colors={['#3b82f6', '#60a5fa']} style={styles.scanButtonGradient}>
+                          <Text style={styles.scanButtonText}>Scan Barcode</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+
+                      {/* Food List */}
+                      {searchResults.map((food) => (
                         <TouchableOpacity
-                          key={unit}
-                          style={[styles.unitButton, selectedUnit === unit && styles.unitButtonActive]}
-                          onPress={() => setSelectedUnit(unit)}
+                          key={food.id}
+                          style={styles.foodItem}
+                          onPress={() => selectFoodForIngredient(food)}
                         >
-                          <Text style={[styles.unitButtonText, selectedUnit === unit && styles.unitButtonTextActive]}>
-                            {unit}
-                          </Text>
+                          <RNView style={styles.foodInfo}>
+                            <Text style={styles.foodName}>{food.name}</Text>
+                            <Text style={styles.foodMacros}>
+                              P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
+                            </Text>
+                          </RNView>
+                          <RNView style={styles.foodCalories}>
+                            <Text style={styles.foodCalorieValue}>{food.calories}</Text>
+                            <Text style={styles.foodCalorieLabel}>cal</Text>
+                          </RNView>
                         </TouchableOpacity>
                       ))}
-                    </RNView>
+                    </>
+                  ) : (
+                    <>
+                      {/* Selected Food */}
+                      <Text style={styles.selectedFoodName}>{selectedFood.name}</Text>
+                      <Text style={styles.selectedFoodServing}>Serving: {selectedFood.servingSize}</Text>
 
-                    {/* Preview */}
-                    {(() => {
-                      const qty = parseFloat(quantity) || 0;
-                      const grams = convertToGrams(qty, selectedUnit, selectedFood);
-                      const preview = calculateNutrition(selectedFood, grams);
-                      return (
-                        <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.previewCard}>
-                          <Text style={styles.previewTitle}>Nutrition Preview</Text>
-                          <RNView style={styles.previewRow}>
-                            <Text style={styles.previewValue}>{preview.calories} cal</Text>
-                            <Text style={styles.previewMacro}>P: {preview.protein}g</Text>
-                            <Text style={styles.previewMacro}>C: {preview.carbs}g</Text>
-                            <Text style={styles.previewMacro}>F: {preview.fat}g</Text>
-                          </RNView>
-                        </LinearGradient>
-                      );
-                    })()}
+                      {/* Quantity Input */}
+                      <Text style={styles.inputLabel}>Amount</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        value={quantity}
+                        onChangeText={setQuantity}
+                        keyboardType="decimal-pad"
+                        placeholder="Amount"
+                        placeholderTextColor="#64748b"
+                      />
 
-                    {/* Add/Cancel Buttons */}
-                    <RNView style={styles.actionButtons}>
-                      <TouchableOpacity
-                        style={styles.cancelButton}
-                        onPress={() => setSelectedFood(null)}
-                      >
-                        <Text style={styles.cancelButtonText}>Back</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={addIngredientToRecipe}>
-                        <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.confirmButton}>
-                          <Text style={styles.confirmButtonText}>Add Ingredient</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </RNView>
-                  </>
-                )}
-              </ScrollView>
-            </RNView>
+                      {/* Unit Selector */}
+                      <Text style={styles.inputLabel}>Unit</Text>
+                      <RNView style={styles.unitSelector}>
+                        {(selectedFood.availableUnits || ['g', 'oz']).map((unit) => (
+                          <TouchableOpacity
+                            key={unit}
+                            style={[styles.unitButton, selectedUnit === unit && styles.unitButtonActive]}
+                            onPress={() => setSelectedUnit(unit)}
+                          >
+                            <Text style={[styles.unitButtonText, selectedUnit === unit && styles.unitButtonTextActive]}>
+                              {unit}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </RNView>
+
+                      {/* Preview */}
+                      {(() => {
+                        const qty = parseFloat(quantity) || 0;
+                        const grams = convertToGrams(qty, selectedUnit, selectedFood);
+                        const preview = calculateNutrition(selectedFood, grams);
+                        return (
+                          <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.previewCard}>
+                            <Text style={styles.previewTitle}>Nutrition Preview</Text>
+                            <RNView style={styles.previewRow}>
+                              <Text style={styles.previewValue}>{preview.calories} cal</Text>
+                              <Text style={styles.previewMacro}>P: {preview.protein}g</Text>
+                              <Text style={styles.previewMacro}>C: {preview.carbs}g</Text>
+                              <Text style={styles.previewMacro}>F: {preview.fat}g</Text>
+                            </RNView>
+                          </LinearGradient>
+                        );
+                      })()}
+
+                      {/* Add/Cancel Buttons */}
+                      <RNView style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={styles.cancelButton}
+                          onPress={() => setSelectedFood(null)}
+                        >
+                          <Text style={styles.cancelButtonText}>Back</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.addIngredientButtonWrapper} onPress={() => {
+                          Keyboard.dismiss();
+                          addIngredientToRecipe();
+                        }}>
+                          <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.confirmButton}>
+                            <Text style={styles.confirmButtonText}>Add Ingredient</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </RNView>
+                    </>
+                  )}
+                </ScrollView>
+              </>
+            )}
           </RNView>
         </Modal>
       </RNView>
@@ -791,6 +805,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   modalContent: {
+    flex: 1,
+    backgroundColor: '#1a1a2e',
+  },
+  ingredientModalContainer: {
     flex: 1,
     backgroundColor: '#1a1a2e',
   },
@@ -1097,8 +1115,10 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontWeight: '600',
   },
-  confirmButton: {
+  addIngredientButtonWrapper: {
     flex: 1,
+  },
+  confirmButton: {
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',

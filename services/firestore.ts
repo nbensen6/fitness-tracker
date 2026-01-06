@@ -172,3 +172,34 @@ export const updateUserWorkoutPlan = async (planId: string, updates: Partial<Use
 export const updateUserProfile = async (userId: string, updates: Record<string, any>) => {
   await updateDoc(doc(db, 'users', userId), updates);
 };
+
+// Custom workout plans
+export const saveCustomPlan = async (userId: string, plan: any) => {
+  const docRef = await addDoc(collection(db, 'customPlans'), {
+    ...plan,
+    userId,
+    createdAt: Timestamp.now()
+  });
+  return docRef.id;
+};
+
+export const getUserCustomPlans = async (userId: string): Promise<any[]> => {
+  const q = query(
+    collection(db, 'customPlans'),
+    where('userId', '==', userId)
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+};
+
+export const deleteCustomPlan = async (planId: string) => {
+  await deleteDoc(doc(db, 'customPlans', planId));
+};
+
+export const deleteUserWorkoutPlan = async (planId: string) => {
+  await deleteDoc(doc(db, 'userPlans', planId));
+};

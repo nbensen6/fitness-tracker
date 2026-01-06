@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View as RNView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View as RNView, TouchableOpacity, Alert, ActivityIndicator, TextInput, ScrollView, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { Text } from '@/components/Themed';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -36,8 +36,17 @@ export default function BarcodeScannerScreen() {
 
       if (food) {
         setScannedFood(food);
-        setQuantity('100');
-        setSelectedUnit('g');
+        // Default based on food type
+        if (food.defaultUnit === 'piece' && food.gramsPerCup) {
+          // For piece-based foods, default to 1 piece
+          setQuantity('1');
+          setSelectedUnit('piece');
+        } else {
+          // For other foods, default to serving quantity or 100g
+          const defaultServingGrams = food.gramsPerCup || 100;
+          setQuantity(defaultServingGrams.toString());
+          setSelectedUnit('g');
+        }
       } else {
         Alert.alert(
           'Product Not Found',
@@ -67,7 +76,7 @@ export default function BarcodeScannerScreen() {
     }
 
     const gramsConsumed = convertToGrams(qty, selectedUnit, scannedFood);
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
 
     try {
       await addMealEntry(userId, {
@@ -78,13 +87,7 @@ export default function BarcodeScannerScreen() {
         mealType,
         date: today,
       });
-
-      const nutrition = calculateNutrition(scannedFood, gramsConsumed);
-      Alert.alert(
-        'Added!',
-        `${scannedFood.name} (${nutrition.calories} cal) added to ${mealType}`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      router.back();
     } catch (error) {
       console.error('Error adding food:', error);
       Alert.alert('Error', 'Failed to add food to log');
@@ -132,95 +135,157 @@ export default function BarcodeScannerScreen() {
 
     return (
       <LinearGradient colors={['#1a1a2e', '#16213e']} style={styles.gradientContainer}>
-        <RNView style={[styles.resultContainer, { paddingTop: insets.top }]}>
-          {/* Header */}
-          <RNView style={styles.header}>
-            <TouchableOpacity onPress={() => {
-              setScannedFood(null);
-              setScanned(false);
-            }} style={styles.backButton}>
-              <Text style={styles.backArrow}>{"< Scan"}</Text>
-            </TouchableOpacity>
-            <Text style={styles.title}>Product Found</Text>
-            <RNView style={styles.headerSpacer} />
-          </RNView>
-
-          {/* Food Info */}
-          <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.foodCard}>
-            <Text style={styles.foodName}>{scannedFood.name}</Text>
-            <Text style={styles.foodServing}>Serving: {scannedFood.servingSize}</Text>
-
-            <RNView style={styles.nutritionRow}>
-              <RNView style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{scannedFood.calories}</Text>
-                <Text style={styles.nutritionLabel}>cal/100g</Text>
-              </RNView>
-              <RNView style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{scannedFood.protein}g</Text>
-                <Text style={styles.nutritionLabel}>protein</Text>
-              </RNView>
-              <RNView style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{scannedFood.carbs}g</Text>
-                <Text style={styles.nutritionLabel}>carbs</Text>
-              </RNView>
-              <RNView style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{scannedFood.fat}g</Text>
-                <Text style={styles.nutritionLabel}>fat</Text>
-              </RNView>
-            </RNView>
-          </LinearGradient>
-
-          {/* Amount Input */}
-          <Text style={styles.inputLabel}>Amount (grams)</Text>
-          <RNView style={styles.amountRow}>
-            {['50', '100', '150', '200'].map((amt) => (
-              <TouchableOpacity
-                key={amt}
-                style={[styles.amountButton, quantity === amt && styles.amountButtonActive]}
-                onPress={() => setQuantity(amt)}
-              >
-                <Text style={[styles.amountButtonText, quantity === amt && styles.amountButtonTextActive]}>
-                  {amt}g
-                </Text>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <RNView style={[styles.resultContainer, { paddingTop: insets.top }]}>
+            {/* Header */}
+            <RNView style={styles.header}>
+              <TouchableOpacity onPress={() => {
+                Keyboard.dismiss();
+                setScannedFood(null);
+                setScanned(false);
+              }} style={styles.backButton}>
+                <Text style={styles.backArrow}>←</Text>
               </TouchableOpacity>
-            ))}
-          </RNView>
+              <Text style={styles.title}>Product Found</Text>
+              <RNView style={styles.headerSpacer} />
+            </RNView>
 
-          {/* Preview */}
-          <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.previewCard}>
-            <Text style={styles.previewTitle}>Adding to {mealType}</Text>
-            <RNView style={styles.previewRow}>
-              <RNView style={styles.previewItem}>
-                <Text style={styles.previewValue}>{preview.calories}</Text>
-                <Text style={styles.previewLabel}>cal</Text>
+            {/* Food Info */}
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.foodCard}>
+              <Text style={styles.foodName}>{scannedFood.name}</Text>
+              <Text style={styles.foodServing}>Serving: {scannedFood.servingSize}</Text>
+
+              <RNView style={styles.nutritionRow}>
+                <RNView style={styles.nutritionItem}>
+                  <Text style={styles.nutritionValue}>{scannedFood.calories}</Text>
+                  <Text style={styles.nutritionLabel}>cal/100g</Text>
+                </RNView>
+                <RNView style={styles.nutritionItem}>
+                  <Text style={styles.nutritionValue}>{scannedFood.protein}g</Text>
+                  <Text style={styles.nutritionLabel}>protein</Text>
+                </RNView>
+                <RNView style={styles.nutritionItem}>
+                  <Text style={styles.nutritionValue}>{scannedFood.carbs}g</Text>
+                  <Text style={styles.nutritionLabel}>carbs</Text>
+                </RNView>
+                <RNView style={styles.nutritionItem}>
+                  <Text style={styles.nutritionValue}>{scannedFood.fat}g</Text>
+                  <Text style={styles.nutritionLabel}>fat</Text>
+                </RNView>
               </RNView>
-              <RNView style={styles.previewItem}>
-                <Text style={styles.previewValue}>{preview.protein}g</Text>
-                <Text style={styles.previewLabel}>protein</Text>
-              </RNView>
-              <RNView style={styles.previewItem}>
-                <Text style={styles.previewValue}>{preview.carbs}g</Text>
-                <Text style={styles.previewLabel}>carbs</Text>
-              </RNView>
-              <RNView style={styles.previewItem}>
-                <Text style={styles.previewValue}>{preview.fat}g</Text>
-                <Text style={styles.previewLabel}>fat</Text>
+            </LinearGradient>
+
+            {/* Amount Input */}
+            <Text style={styles.inputLabel}>Amount</Text>
+            <RNView style={styles.quantityInputRow}>
+              <TextInput
+                style={styles.quantityInput}
+                value={quantity}
+                onChangeText={setQuantity}
+                keyboardType="numeric"
+                placeholder="Amount"
+                placeholderTextColor="#64748b"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+              />
+              <RNView style={styles.unitSelector}>
+                {(scannedFood?.availableUnits || ['g', 'oz']).map((unit) => (
+                  <TouchableOpacity
+                    key={unit}
+                    style={[styles.unitButton, selectedUnit === unit && styles.unitButtonActive]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSelectedUnit(unit);
+                    }}
+                  >
+                    <Text style={[styles.unitButtonText, selectedUnit === unit && styles.unitButtonTextActive]}>
+                      {unit}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </RNView>
             </RNView>
-          </LinearGradient>
 
-          {/* Action Buttons */}
-          <RNView style={styles.actionButtons}>
-            <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={addToLog}>
-              <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.addButton}>
-                <Text style={styles.addButtonText}>Add to Log</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+            {/* Quick Amount Buttons */}
+            <RNView style={styles.amountRow}>
+              {scannedFood?.defaultUnit === 'piece' ? (
+                // Piece-based quick amounts
+                ['1', '2', '4', '6'].map((amt) => (
+                  <TouchableOpacity
+                    key={amt}
+                    style={[styles.amountButton, quantity === amt && selectedUnit === 'piece' && styles.amountButtonActive]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setQuantity(amt);
+                      setSelectedUnit('piece');
+                    }}
+                  >
+                    <Text style={[styles.amountButtonText, quantity === amt && selectedUnit === 'piece' && styles.amountButtonTextActive]}>
+                      {amt} pc
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                // Gram-based quick amounts
+                [
+                  scannedFood?.gramsPerCup ? Math.round(scannedFood.gramsPerCup).toString() : '30',
+                  '50',
+                  '100',
+                  '150'
+                ].map((amt) => (
+                  <TouchableOpacity
+                    key={amt}
+                    style={[styles.amountButton, quantity === amt && selectedUnit === 'g' && styles.amountButtonActive]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setQuantity(amt);
+                      setSelectedUnit('g');
+                    }}
+                  >
+                    <Text style={[styles.amountButtonText, quantity === amt && selectedUnit === 'g' && styles.amountButtonTextActive]}>
+                      {amt}g
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </RNView>
+
+            {/* Preview */}
+            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.previewCard}>
+              <Text style={styles.previewTitle}>Adding to {mealType}</Text>
+              <RNView style={styles.previewRow}>
+                <RNView style={styles.previewItem}>
+                  <Text style={styles.previewValue}>{preview.calories}</Text>
+                  <Text style={styles.previewLabel}>cal</Text>
+                </RNView>
+                <RNView style={styles.previewItem}>
+                  <Text style={styles.previewValue}>{preview.protein}g</Text>
+                  <Text style={styles.previewLabel}>protein</Text>
+                </RNView>
+                <RNView style={styles.previewItem}>
+                  <Text style={styles.previewValue}>{preview.carbs}g</Text>
+                  <Text style={styles.previewLabel}>carbs</Text>
+                </RNView>
+                <RNView style={styles.previewItem}>
+                  <Text style={styles.previewValue}>{preview.fat}g</Text>
+                  <Text style={styles.previewLabel}>fat</Text>
+                </RNView>
+              </RNView>
+            </LinearGradient>
+
+            {/* Action Buttons */}
+            <RNView style={styles.actionButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={addToLog}>
+                <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.addButton}>
+                  <Text style={styles.addButtonText}>Add to Log</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </RNView>
           </RNView>
-        </RNView>
+        </TouchableWithoutFeedback>
       </LinearGradient>
     );
   }
@@ -436,7 +501,7 @@ const styles = StyleSheet.create({
     marginLeft: -8,
   },
   backArrow: {
-    fontSize: 18,
+    fontSize: 24,
     color: '#fff',
     fontWeight: '600',
   },
@@ -484,6 +549,46 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontWeight: '500',
   },
+  quantityInputRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  quantityInput: {
+    flex: 1,
+    backgroundColor: '#2d2d44',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 18,
+    color: '#fff',
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  unitSelector: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  unitButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#2d2d44',
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  unitButtonActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  unitButtonText: {
+    color: '#64748b',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  unitButtonTextActive: {
+    color: '#fff',
+  },
   amountRow: {
     flexDirection: 'row',
     gap: 10,
@@ -491,7 +596,7 @@ const styles = StyleSheet.create({
   },
   amountButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 10,
     backgroundColor: '#2d2d44',
     alignItems: 'center',
@@ -505,6 +610,7 @@ const styles = StyleSheet.create({
   amountButtonText: {
     color: '#64748b',
     fontWeight: '600',
+    fontSize: 12,
   },
   amountButtonTextActive: {
     color: '#fff',
