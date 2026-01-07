@@ -133,6 +133,135 @@ export const convertToGrams = (amount: number, unit: ServingUnit, food?: FoodIte
   return amount * unitToGrams[unit];
 };
 
+// Brand normalization map - maps common misspellings/variations to the official brand name
+const brandNormalization: Record<string, string> = {
+  // Fast food
+  'mcdonalds': "McDonald's",
+  'mcdonald': "McDonald's",
+  'wendys': "Wendy's",
+  'wendy': "Wendy's",
+  'arbys': "Arby's",
+  'arby': "Arby's",
+  'hardees': "Hardee's",
+  'hardee': "Hardee's",
+  'carls jr': "Carl's Jr",
+  'carlsjr': "Carl's Jr",
+  'dennys': "Denny's",
+  'denny': "Denny's",
+  'popeyes': "Popeyes",
+  'popeye': "Popeyes",
+  'chilis': "Chili's",
+  'chili': "Chili's",
+  'applebees': "Applebee's",
+  'applebee': "Applebee's",
+  'tjmaxx': "TJ Maxx",
+  'chickfila': "Chick-fil-A",
+  'chick fil a': "Chick-fil-A",
+  'chickfil': "Chick-fil-A",
+  'chipotle': "Chipotle",
+  'subway': "Subway",
+  'burger king': "Burger King",
+  'burgerking': "Burger King",
+  'taco bell': "Taco Bell",
+  'tacobell': "Taco Bell",
+  'kfc': "KFC",
+  'pizza hut': "Pizza Hut",
+  'pizzahut': "Pizza Hut",
+  'dominos': "Domino's",
+  'domino': "Domino's",
+  'papa johns': "Papa John's",
+  'papajohns': "Papa John's",
+  'little caesars': "Little Caesars",
+  'littlecaesars': "Little Caesars",
+  'five guys': "Five Guys",
+  'fiveguys': "Five Guys",
+  'in n out': "In-N-Out",
+  'innout': "In-N-Out",
+  'sonic': "Sonic",
+  'jack in the box': "Jack in the Box",
+  'jackinthebox': "Jack in the Box",
+  'whataburger': "Whataburger",
+  'culvers': "Culver's",
+  'culver': "Culver's",
+  'starbucks': "Starbucks",
+  'dunkin': "Dunkin'",
+  'dunkin donuts': "Dunkin'",
+  'tim hortons': "Tim Hortons",
+  'timhortons': "Tim Hortons",
+  'panera': "Panera Bread",
+  'panera bread': "Panera Bread",
+
+  // Grocery stores / store brands
+  'aldi': "Aldi",
+  'aldis': "Aldi",
+  'trader joes': "Trader Joe's",
+  'traderjoes': "Trader Joe's",
+  'trader joe': "Trader Joe's",
+  'whole foods': "Whole Foods",
+  'wholefoods': "Whole Foods",
+  'costco': "Kirkland Signature",
+  'kirkland': "Kirkland Signature",
+  'walmart': "Great Value",
+  'great value': "Great Value",
+  'target': "Good & Gather",
+  'good gather': "Good & Gather",
+  'kroger': "Kroger",
+  'safeway': "Safeway",
+  'publix': "Publix",
+  'wegmans': "Wegmans",
+
+  // Aldi specific brands
+  'appleton farms': "Appleton Farms",
+  'appletonfarms': "Appleton Farms",
+  'never any': "Never Any!",
+  'neverany': "Never Any!",
+  'fit active': "Fit & Active",
+  'fitactive': "Fit & Active",
+  'simply nature': "Simply Nature",
+  'simplynature': "Simply Nature",
+  'loven fresh': "L'oven Fresh",
+  'lovenfresh': "L'oven Fresh",
+  'clancy': "Clancy's",
+  'clancys': "Clancy's",
+  'elevation': "Elevation",
+  'friendly farms': "Friendly Farms",
+  'friendlyfarms': "Friendly Farms",
+  'millville': "Millville",
+  'mama cozzis': "Mama Cozzi's",
+  'mamacozzis': "Mama Cozzi's",
+  'specially selected': "Specially Selected",
+  'speciallyselected': "Specially Selected",
+};
+
+// Extract and normalize brand from search term
+const extractBrand = (searchTerm: string): { brand: string | null; remainder: string } => {
+  const lowerTerm = searchTerm.toLowerCase().trim();
+
+  // Check for exact brand matches first (longer phrases first)
+  const sortedBrands = Object.keys(brandNormalization).sort((a, b) => b.length - a.length);
+
+  for (const brandKey of sortedBrands) {
+    if (lowerTerm.includes(brandKey)) {
+      const normalizedBrand = brandNormalization[brandKey];
+      // Remove the brand from the search term
+      const remainder = lowerTerm.replace(brandKey, '').trim();
+      return { brand: normalizedBrand, remainder };
+    }
+  }
+
+  return { brand: null, remainder: lowerTerm };
+};
+
+// Normalize search term - remove apostrophes, extra spaces, etc.
+const normalizeSearchTerm = (term: string): string => {
+  return term
+    .toLowerCase()
+    .replace(/[''`]/g, '') // Remove apostrophes
+    .replace(/[^\w\s]/g, ' ') // Replace other punctuation with spaces
+    .replace(/\s+/g, ' ') // Collapse multiple spaces
+    .trim();
+};
+
 // Calculate nutrition based on grams consumed
 export const calculateNutrition = (food: FoodItem, gramsConsumed: number) => {
   // Safeguard against division by zero or invalid servingGrams
@@ -150,52 +279,121 @@ export const calculateNutrition = (food: FoodItem, gramsConsumed: number) => {
   };
 };
 
-export const searchFoods = async (searchTerm: string): Promise<FoodItem[]> => {
-  try {
-    const response = await fetch(
-      `${OPEN_FOOD_FACTS_API}?search_terms=${encodeURIComponent(searchTerm)}&search_simple=1&action=process&json=1&page_size=20`
-    );
+// Helper to convert Open Food Facts product to FoodItem
+const productToFoodItem = (product: OpenFoodFactsProduct): FoodItem => {
+  const pieceInfo = detectPieceBasedFood(product.product_name);
 
+  if (pieceInfo) {
+    return {
+      id: product.code,
+      name: product.product_name,
+      calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
+      protein: Math.round(product.nutriments.proteins_100g || 0),
+      carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
+      fat: Math.round(product.nutriments.fat_100g || 0),
+      servingSize: `1 ${pieceInfo.unit} (${pieceInfo.gramsPerPiece}g)`,
+      servingGrams: 100,
+      defaultUnit: pieceInfo.unit,
+      availableUnits: [pieceInfo.unit, 'g', 'oz'],
+      gramsPerCup: pieceInfo.gramsPerPiece,
+    };
+  }
+
+  return {
+    id: product.code,
+    name: product.product_name,
+    calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
+    protein: Math.round(product.nutriments.proteins_100g || 0),
+    carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
+    fat: Math.round(product.nutriments.fat_100g || 0),
+    servingSize: '100g',
+    servingGrams: 100,
+    defaultUnit: 'g',
+    availableUnits: ['g', 'oz'],
+  };
+};
+
+// Perform a single search query to Open Food Facts
+const doSearch = async (
+  searchTerms: string,
+  brandTag?: string,
+  pageSize: number = 15
+): Promise<OpenFoodFactsProduct[]> => {
+  try {
+    let url = `${OPEN_FOOD_FACTS_API}?search_terms=${encodeURIComponent(searchTerms)}&search_simple=1&action=process&json=1&page_size=${pageSize}`;
+
+    // Add brand filter if provided
+    if (brandTag) {
+      const brandSlug = brandTag.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+      url += `&tagtype_0=brands&tag_contains_0=contains&tag_0=${encodeURIComponent(brandSlug)}`;
+    }
+
+    const response = await fetch(url);
     const data = await response.json();
 
     if (!data.products) return [];
 
-    return data.products
-      .filter((p: OpenFoodFactsProduct) => p.product_name && p.nutriments)
-      .map((product: OpenFoodFactsProduct): FoodItem => {
-        const pieceInfo = detectPieceBasedFood(product.product_name);
+    return data.products.filter((p: OpenFoodFactsProduct) => p.product_name && p.nutriments);
+  } catch (error) {
+    console.error('Search error:', error);
+    return [];
+  }
+};
 
-        if (pieceInfo) {
-          // Piece-based food detected - set up proper serving info
-          return {
-            id: product.code,
-            name: product.product_name,
-            calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
-            protein: Math.round(product.nutriments.proteins_100g || 0),
-            carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
-            fat: Math.round(product.nutriments.fat_100g || 0),
-            servingSize: `1 ${pieceInfo.unit} (${pieceInfo.gramsPerPiece}g)`,
-            servingGrams: 100, // Nutrition is per 100g
-            defaultUnit: pieceInfo.unit,
-            availableUnits: [pieceInfo.unit, 'g', 'oz'],
-            gramsPerCup: pieceInfo.gramsPerPiece, // Store grams per piece here
-          };
+export const searchFoods = async (searchTerm: string): Promise<FoodItem[]> => {
+  try {
+    const normalizedTerm = normalizeSearchTerm(searchTerm);
+    const { brand, remainder } = extractBrand(searchTerm);
+
+    const allProducts: OpenFoodFactsProduct[] = [];
+    const seenIds = new Set<string>();
+
+    // Strategy 1: If brand detected, search with brand filter + remainder
+    if (brand && remainder) {
+      const brandResults = await doSearch(remainder, brand, 15);
+      for (const p of brandResults) {
+        if (!seenIds.has(p.code)) {
+          seenIds.add(p.code);
+          allProducts.push(p);
         }
+      }
+    }
 
-        // Default gram-based food
-        return {
-          id: product.code,
-          name: product.product_name,
-          calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
-          protein: Math.round(product.nutriments.proteins_100g || 0),
-          carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
-          fat: Math.round(product.nutriments.fat_100g || 0),
-          servingSize: '100g',
-          servingGrams: 100, // API returns per 100g
-          defaultUnit: 'g',
-          availableUnits: ['g', 'oz'],
-        };
-      });
+    // Strategy 2: Search with normalized full term (handles "mcdonalds burger" -> searches "mcdonalds burger")
+    if (allProducts.length < 10) {
+      const fullResults = await doSearch(normalizedTerm, undefined, 15);
+      for (const p of fullResults) {
+        if (!seenIds.has(p.code)) {
+          seenIds.add(p.code);
+          allProducts.push(p);
+        }
+      }
+    }
+
+    // Strategy 3: If brand detected, also search brand name + remainder as plain text
+    if (brand && remainder && allProducts.length < 10) {
+      const brandTextResults = await doSearch(`${brand} ${remainder}`, undefined, 10);
+      for (const p of brandTextResults) {
+        if (!seenIds.has(p.code)) {
+          seenIds.add(p.code);
+          allProducts.push(p);
+        }
+      }
+    }
+
+    // Strategy 4: If still few results and we have a brand, try just the remainder
+    if (remainder && allProducts.length < 5) {
+      const remainderResults = await doSearch(remainder, undefined, 10);
+      for (const p of remainderResults) {
+        if (!seenIds.has(p.code)) {
+          seenIds.add(p.code);
+          allProducts.push(p);
+        }
+      }
+    }
+
+    // Convert to FoodItems and limit to 25 results
+    return allProducts.slice(0, 25).map(productToFoodItem);
   } catch (error) {
     console.error('Error searching foods:', error);
     return [];

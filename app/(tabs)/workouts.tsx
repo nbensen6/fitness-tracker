@@ -63,9 +63,9 @@ export default function WorkoutsScreen() {
             equipment: ex.equipment || 'bodyweight',
           };
 
-          // Create sets with target reps pre-filled
+          // Create sets with empty reps (user fills in as they go)
           const sets = Array.from({ length: ex.targetSets }, () => ({
-            reps: ex.targetReps,
+            reps: 0,
             weight: 0,
             completed: false,
           }));
@@ -146,6 +146,16 @@ export default function WorkoutsScreen() {
     updated[exerciseIndex].sets = updated[exerciseIndex].sets.map(set => ({
       ...set,
       weight,
+    }));
+    setWorkoutExercises(updated);
+    Keyboard.dismiss();
+  };
+
+  const applyRepsToAll = (exerciseIndex: number, reps: number) => {
+    const updated = [...workoutExercises];
+    updated[exerciseIndex].sets = updated[exerciseIndex].sets.map(set => ({
+      ...set,
+      reps,
     }));
     setWorkoutExercises(updated);
     Keyboard.dismiss();
@@ -426,14 +436,24 @@ export default function WorkoutsScreen() {
                   >
                     <Text style={styles.addSetText}>+ Add Set</Text>
                   </TouchableOpacity>
-                  {workoutExercise.sets.length > 1 && workoutExercise.sets[0].weight > 0 && (
-                    <TouchableOpacity
-                      style={styles.applyAllButton}
-                      onPress={() => applyWeightToAll(exerciseIndex, workoutExercise.sets[0].weight)}
-                    >
-                      <Text style={styles.applyAllText}>Apply {workoutExercise.sets[0].weight} to all</Text>
-                    </TouchableOpacity>
-                  )}
+                  <RNView style={styles.applyButtonsRow}>
+                    {workoutExercise.sets.length > 1 && workoutExercise.sets[0].weight > 0 && (
+                      <TouchableOpacity
+                        style={styles.applyAllButton}
+                        onPress={() => applyWeightToAll(exerciseIndex, workoutExercise.sets[0].weight)}
+                      >
+                        <Text style={styles.applyAllText}>{workoutExercise.sets[0].weight} lbs to all</Text>
+                      </TouchableOpacity>
+                    )}
+                    {workoutExercise.sets.length > 1 && workoutExercise.sets[0].reps > 0 && (
+                      <TouchableOpacity
+                        style={styles.applyRepsButton}
+                        onPress={() => applyRepsToAll(exerciseIndex, workoutExercise.sets[0].reps)}
+                      >
+                        <Text style={styles.applyAllText}>{workoutExercise.sets[0].reps} reps to all</Text>
+                      </TouchableOpacity>
+                    )}
+                  </RNView>
                 </RNView>
               </LinearGradient>
             ))}
@@ -798,6 +818,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  applyButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  applyRepsButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
   addExerciseButton: {
     padding: 16,
