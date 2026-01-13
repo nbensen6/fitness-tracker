@@ -3,7 +3,7 @@ import { StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ImageBackgr
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { searchFoods, commonFoods, searchCommonFoods, convertToGrams, calculateNutrition } from '@/services/foodApi';
-import { addMealEntry, getMealsByDate, deleteMealEntry } from '@/services/firestore';
+import { addMealEntry, getMealsByDate, deleteMealEntry, deleteRecipeGroup } from '@/services/firestore';
 import { FoodItem, MealEntry, ServingUnit } from '@/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
@@ -258,6 +258,53 @@ export default function CaloriesScreen() {
     }
   };
 
+  const handleDeleteRecipeGroup = async (recipeGroupId: string) => {
+    if (!userId) return;
+    try {
+      await deleteRecipeGroup(userId, recipeGroupId);
+      loadTodayMeals();
+    } catch (error) {
+      console.error('Error deleting recipe group:', error);
+    }
+  };
+
+  // Group meals by recipe for display
+  const groupMealsByRecipe = (meals: MealEntry[]) => {
+    const groups: { recipeName: string | null; recipeGroupId: string | null; meals: MealEntry[] }[] = [];
+    const recipeGroups = new Map<string, MealEntry[]>();
+    const standaloneMeals: MealEntry[] = [];
+
+    meals.forEach(meal => {
+      if (meal.recipeGroupId) {
+        const existing = recipeGroups.get(meal.recipeGroupId) || [];
+        existing.push(meal);
+        recipeGroups.set(meal.recipeGroupId, existing);
+      } else {
+        standaloneMeals.push(meal);
+      }
+    });
+
+    // Add recipe groups first
+    recipeGroups.forEach((groupMeals, groupId) => {
+      groups.push({
+        recipeName: groupMeals[0]?.recipeName || 'Recipe',
+        recipeGroupId: groupId,
+        meals: groupMeals
+      });
+    });
+
+    // Add standalone meals
+    standaloneMeals.forEach(meal => {
+      groups.push({
+        recipeName: null,
+        recipeGroupId: null,
+        meals: [meal]
+      });
+    });
+
+    return groups;
+  };
+
   const dailyTotals = todayMeals.reduce(
     (totals, meal) => {
       let nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -507,36 +554,67 @@ export default function CaloriesScreen() {
               {mealTypes.map((type) => {
                 const meals = getMealsByType(type);
                 if (meals.length === 0) return null;
+                const groupedMeals = groupMealsByRecipe(meals);
 
                 return (
                   <RNView key={type} style={styles.mealGroup}>
                     <Text style={styles.mealGroupTitle}>
                       {type.charAt(0).toUpperCase() + type.slice(1)}
                     </Text>
-                    {meals.map((meal) => {
-                      const mealCalories = meal.gramsConsumed && meal.foodItem.servingGrams
-                        ? calculateNutrition(meal.foodItem, meal.gramsConsumed).calories
-                        : meal.foodItem.calories * meal.quantity;
-                      const displayAmount = meal.unit
-                        ? `${meal.quantity} ${meal.unit}`
-                        : `${meal.quantity} serving`;
-                      return (
-                        <SwipeableRow key={meal.id} onDelete={() => handleDeleteMeal(meal.id)}>
-                          <RNView style={styles.loggedMeal}>
-                            <RNView style={styles.loggedMealInfo}>
-                              <Text style={styles.loggedMealName}>
-                                {meal.foodItem.name}
-                              </Text>
-                              <Text style={styles.loggedMealAmount}>
-                                {displayAmount}
-                              </Text>
-                            </RNView>
-                            <Text style={styles.loggedMealCalories}>
-                              {mealCalories} cal
-                            </Text>
+                    {groupedMeals.map((group) => {
+                      const groupCalories = group.meals.reduce((sum, meal) => {
+                        const cal = meal.gramsConsumed && meal.foodItem.servingGrams
+                          ? calculateNutrition(meal.foodItem, meal.gramsConsumed).calories
+                          : meal.foodItem.calories * meal.quantity;
+                        return sum + cal;
+                      }, 0);
+
+                      if (group.recipeName && group.recipeGroupId) {
+                        return (
+                          <RNView key={group.recipeGroupId} style={styles.recipeGroup}>
+                            <SwipeableRow onDelete={() => handleDeleteRecipeGroup(group.recipeGroupId!)}>
+                              <RNView style={styles.recipeHeader}>
+                                <Text style={styles.recipeHeaderName}>{group.recipeName}</Text>
+                                <Text style={styles.recipeHeaderCal}>{groupCalories} cal</Text>
+                              </RNView>
+                            </SwipeableRow>
+                            {group.meals.map((meal) => {
+                              const mealCalories = meal.gramsConsumed && meal.foodItem.servingGrams
+                                ? calculateNutrition(meal.foodItem, meal.gramsConsumed).calories
+                                : meal.foodItem.calories * meal.quantity;
+                              const displayAmount = meal.unit ? `${meal.quantity} ${meal.unit}` : `${meal.quantity} serving`;
+                              return (
+                                <SwipeableRow key={meal.id} onDelete={() => handleDeleteMeal(meal.id)}>
+                                  <RNView style={styles.recipeIngredient}>
+                                    <RNView style={styles.loggedMealInfo}>
+                                      <Text style={styles.recipeIngredientName}>{meal.foodItem.name}</Text>
+                                      <Text style={styles.loggedMealAmount}>{displayAmount}</Text>
+                                    </RNView>
+                                    <Text style={styles.recipeIngredientCal}>{mealCalories} cal</Text>
+                                  </RNView>
+                                </SwipeableRow>
+                              );
+                            })}
                           </RNView>
-                        </SwipeableRow>
-                      );
+                        );
+                      } else {
+                        const meal = group.meals[0];
+                        const mealCalories = meal.gramsConsumed && meal.foodItem.servingGrams
+                          ? calculateNutrition(meal.foodItem, meal.gramsConsumed).calories
+                          : meal.foodItem.calories * meal.quantity;
+                        const displayAmount = meal.unit ? `${meal.quantity} ${meal.unit}` : `${meal.quantity} serving`;
+                        return (
+                          <SwipeableRow key={meal.id} onDelete={() => handleDeleteMeal(meal.id)}>
+                            <RNView style={styles.loggedMeal}>
+                              <RNView style={styles.loggedMealInfo}>
+                                <Text style={styles.loggedMealName}>{meal.foodItem.name}</Text>
+                                <Text style={styles.loggedMealAmount}>{displayAmount}</Text>
+                              </RNView>
+                              <Text style={styles.loggedMealCalories}>{mealCalories} cal</Text>
+                            </RNView>
+                          </SwipeableRow>
+                        );
+                      }
                     })}
                   </RNView>
                 );
@@ -1089,6 +1167,47 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#64748b',
     paddingVertical: 20,
+  },
+  // Recipe group styles
+  recipeGroup: {
+    marginBottom: 12,
+    backgroundColor: '#252538',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  recipeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#3b3b5c',
+  },
+  recipeHeaderName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  recipeHeaderCal: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4ade80',
+  },
+  recipeIngredient: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    paddingLeft: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#1a1a2e',
+  },
+  recipeIngredientName: {
+    fontSize: 13,
+    color: '#cbd5e1',
+  },
+  recipeIngredientCal: {
+    fontSize: 13,
+    color: '#94a3b8',
   },
   // Modal styles
   modalOverlay: {

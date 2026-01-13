@@ -233,9 +233,11 @@ export default function RecipesScreen() {
     if (!userId) return;
 
     const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+    // Generate unique group ID to link all entries from this recipe addition
+    const recipeGroupId = `${recipe.id}_${Date.now()}`;
 
     try {
-      // Add each ingredient as a separate meal entry
+      // Add each ingredient as a separate meal entry, linked by recipeGroupId
       for (const ingredient of recipe.ingredients) {
         await addMealEntry(userId, {
           foodItem: ingredient.foodItem,
@@ -244,6 +246,9 @@ export default function RecipesScreen() {
           gramsConsumed: ingredient.gramsConsumed,
           mealType: recipe.defaultMealType,
           date: today,
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          recipeGroupId,
         });
       }
       // Navigate back to calories log so user can see the added recipe

@@ -63,6 +63,10 @@ export interface MealEntry {
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   date: string;
   timestamp: Date;
+  // Recipe tracking (optional - only set when entry comes from a recipe)
+  recipeId?: string;
+  recipeName?: string;
+  recipeGroupId?: string;
 }
 
 // Recipe ingredient
@@ -117,6 +121,10 @@ export interface Workout {
   date: string;
   duration: number;
   timestamp: Date;
+  // Recipe tracking (optional - only set when entry comes from a recipe)
+  recipeId?: string;
+  recipeName?: string;
+  recipeGroupId?: string;
   completed: boolean;
 }
 
