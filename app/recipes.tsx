@@ -247,7 +247,7 @@ export default function RecipesScreen() {
         });
       }
       // Navigate back to calories log so user can see the added recipe
-      router.replace('/(tabs)/calories');
+      router.back();
 
     } catch (error) {
       console.error('Error using recipe:', error);
