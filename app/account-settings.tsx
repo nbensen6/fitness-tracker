@@ -243,7 +243,6 @@ export default function AccountSettingsScreen() {
 
       await updateUserProfile(userId, updates);
       await refreshProfile();
-      Alert.alert('Success', 'Your settings have been saved!');
       router.back();
     } catch (error) {
       console.error('Error saving profile:', error);

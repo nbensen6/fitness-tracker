@@ -146,7 +146,7 @@ export default function RecipesScreen() {
           totalFat: totals.fat,
           defaultMealType: recipeMealType,
         });
-        Alert.alert('Success', 'Recipe updated!');
+        
       } else {
         // Create new recipe
         await addRecipe(userId, {
@@ -158,7 +158,7 @@ export default function RecipesScreen() {
           totalFat: totals.fat,
           defaultMealType: recipeMealType,
         });
-        Alert.alert('Success', 'Recipe saved!');
+        
       }
 
       // Reset form
@@ -247,7 +247,6 @@ export default function RecipesScreen() {
         });
       }
 
-      Alert.alert('Added!', `${recipe.name} added to your ${recipe.defaultMealType} log.`);
     } catch (error) {
       console.error('Error using recipe:', error);
       Alert.alert('Error', 'Failed to add recipe to log');

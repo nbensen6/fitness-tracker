@@ -334,7 +334,6 @@ export default function LoginScreen() {
         setResetCodeSent(false);
         setResetCode('');
         setNewPassword('');
-        Alert.alert('Success', 'Password reset successfully!');
         router.replace('/(tabs)');
       } else {
         Alert.alert('Error', 'Unable to reset password. Please try again.');

@@ -92,7 +92,6 @@ export default function PlansScreen() {
       });
       loadActivePlan();
       setSelectedPlan(null);
-      Alert.alert('Plan Started', `You've started the ${plan.name} plan!`);
     } catch (error) {
       console.error('Error starting plan:', error);
       Alert.alert('Error', 'Failed to start plan');
@@ -292,7 +291,6 @@ export default function PlansScreen() {
       await saveCustomPlan(userId, { plan });
       setShowCreateModal(false);
       loadCustomPlans();
-      Alert.alert('Success', 'Custom plan saved!');
     } catch (error) {
       console.error('Error saving custom plan:', error);
       Alert.alert('Error', 'Failed to save plan');

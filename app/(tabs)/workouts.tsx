@@ -216,7 +216,6 @@ export default function WorkoutsScreen() {
         }
       }
 
-      Alert.alert('Workout Saved', `Great job! Duration: ${duration} minutes`);
       setWorkoutStarted(false);
       setWorkoutExercises([]);
       setWorkoutName('');
