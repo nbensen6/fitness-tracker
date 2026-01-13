@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Setup EAS
         uses: expo/expo-github-action@v8
@@ -31,4 +31,4 @@ jobs:
         run: npm ci
 
       - name: Build iOS and Submit to TestFlight
-        run: eas build --platform ios --profile production --auto-submit --non-interactive
+        run: eas build --platform ios --profile production --auto-submit
