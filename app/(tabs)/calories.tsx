@@ -543,30 +543,30 @@ export default function CaloriesScreen() {
               </TouchableOpacity>
             </RNView>
 
-            {/* Search Results / Quick Add */}
-            <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                {searchQuery ? 'Search Results' : 'Quick Add'}
-              </Text>
-              {(searchResults.length > 0 ? searchResults : commonFoods).slice(0, 8).map((food) => (
-                <TouchableOpacity
-                  key={food.id}
-                  style={styles.foodItem}
-                  onPress={() => openQuantityModal(food)}
-                >
-                  <RNView style={styles.foodInfo}>
-                    <Text style={styles.foodName}>{food.name}</Text>
-                    <Text style={styles.foodMacros}>
-                      P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
-                    </Text>
-                  </RNView>
-                  <RNView style={styles.foodCalories}>
-                    <Text style={styles.calorieValue}>{food.calories}</Text>
-                    <Text style={styles.calorieLabel}>cal</Text>
-                  </RNView>
-                </TouchableOpacity>
-              ))}
-            </LinearGradient>
+            {/* Search Results - only show when searching */}
+            {searchQuery.trim() && searchResults.length > 0 && (
+              <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.section}>
+                <Text style={styles.sectionTitle}>Search Results</Text>
+                {searchResults.slice(0, 8).map((food) => (
+                  <TouchableOpacity
+                    key={food.id}
+                    style={styles.foodItem}
+                    onPress={() => openQuantityModal(food)}
+                  >
+                    <RNView style={styles.foodInfo}>
+                      <Text style={styles.foodName}>{food.name}</Text>
+                      <Text style={styles.foodMacros}>
+                        P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
+                      </Text>
+                    </RNView>
+                    <RNView style={styles.foodCalories}>
+                      <Text style={styles.calorieValue}>{food.calories}</Text>
+                      <Text style={styles.calorieLabel}>cal</Text>
+                    </RNView>
+                  </TouchableOpacity>
+                ))}
+              </LinearGradient>
+            )}
 
             {/* Today's Log */}
             <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.section}>
