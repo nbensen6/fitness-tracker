@@ -3,7 +3,7 @@ import { StyleSheet, ScrollView, TouchableOpacity, View as RNView, TextInput, Mo
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserRecipes, addRecipe, deleteRecipe, addMealEntry, updateRecipe } from '@/services/firestore';
-import { commonFoods, searchCommonFoods, convertToGrams, calculateNutrition, lookupBarcode } from '@/services/foodApi';
+import { commonFoods, searchCommonFoods, searchFoods, convertToGrams, calculateNutrition, lookupBarcode } from '@/services/foodApi';
 import { Recipe, RecipeIngredient, FoodItem, ServingUnit } from '@/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
@@ -31,6 +31,7 @@ export default function RecipesScreen() {
   // Add ingredient state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FoodItem[]>(commonFoods.slice(0, 10));
+  const [searching, setSearching] = useState(false);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [selectedUnit, setSelectedUnit] = useState<ServingUnit>('g');
@@ -61,14 +62,37 @@ export default function RecipesScreen() {
     }
   };
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (!query.trim()) {
+  // Real-time search as user types (same logic as calories screen)
+  useEffect(() => {
+    if (!searchQuery.trim()) {
       setSearchResults(commonFoods.slice(0, 10));
       return;
     }
-    const results = searchCommonFoods(query);
-    setSearchResults(results.length > 0 ? results : commonFoods.slice(0, 10));
+
+    // Instantly filter local common foods
+    const localResults = searchCommonFoods(searchQuery);
+    setSearchResults(localResults.length > 0 ? localResults : []);
+
+    // Debounce API search for when no local results
+    if (localResults.length === 0) {
+      const timeoutId = setTimeout(async () => {
+        setSearching(true);
+        try {
+          const results = await searchFoods(searchQuery);
+          setSearchResults(results.length > 0 ? results : []);
+        } catch (error) {
+          console.error('Search error:', error);
+        } finally {
+          setSearching(false);
+        }
+      }, 500);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchQuery]);
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
   };
 
   const selectFoodForIngredient = (food: FoodItem) => {
