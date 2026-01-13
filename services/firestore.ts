@@ -52,6 +52,18 @@ export const deleteRecipeGroup = async (userId: string, recipeGroupId: string) =
   await Promise.all(deletePromises);
 };
 
+export const deleteMealsByType = async (userId: string, date: string, mealType: string) => {
+  const q = query(
+    collection(db, 'meals'),
+    where('userId', '==', userId),
+    where('date', '==', date),
+    where('mealType', '==', mealType)
+  );
+  const snapshot = await getDocs(q);
+  const deletePromises = snapshot.docs.map(d => deleteDoc(d.ref));
+  await Promise.all(deletePromises);
+};
+
 export const getMealsForDateRange = async (userId: string, startDate: string, endDate: string): Promise<MealEntry[]> => {
   const q = query(
     collection(db, 'meals'),

@@ -3,7 +3,7 @@ import { StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ImageBackgr
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
 import { searchFoods, commonFoods, searchCommonFoods, convertToGrams, calculateNutrition } from '@/services/foodApi';
-import { addMealEntry, getMealsByDate, deleteMealEntry, deleteRecipeGroup } from '@/services/firestore';
+import { addMealEntry, getMealsByDate, deleteMealEntry, deleteRecipeGroup, deleteMealsByType } from '@/services/firestore';
 import { FoodItem, MealEntry, ServingUnit } from '@/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
@@ -266,6 +266,29 @@ export default function CaloriesScreen() {
     } catch (error) {
       console.error('Error deleting recipe group:', error);
     }
+  };
+
+  const handleDeleteMealType = async (mealType: MealType) => {
+    if (!userId) return;
+    Alert.alert(
+      'Delete All',
+      `Delete all ${mealType} entries for today?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMealsByType(userId, today, mealType);
+              loadTodayMeals();
+            } catch (error) {
+              console.error('Error deleting meal type:', error);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Group meals by recipe for display
@@ -558,9 +581,14 @@ export default function CaloriesScreen() {
 
                 return (
                   <RNView key={type} style={styles.mealGroup}>
-                    <Text style={styles.mealGroupTitle}>
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </Text>
+                    <RNView style={styles.mealGroupHeader}>
+                      <Text style={styles.mealGroupTitle}>
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </Text>
+                      <TouchableOpacity onPress={() => handleDeleteMealType(type)}>
+                        <Text style={styles.clearAllText}>Clear All</Text>
+                      </TouchableOpacity>
+                    </RNView>
                     {groupedMeals.map((group) => {
                       const groupCalories = group.meals.reduce((sum, meal) => {
                         const cal = meal.gramsConsumed && meal.foodItem.servingGrams
@@ -1122,11 +1150,21 @@ const styles = StyleSheet.create({
   mealGroup: {
     marginBottom: 16,
   },
+  mealGroupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  clearAllText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '500',
+  },
   mealGroupTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: '#94a3b8',
-    marginBottom: 8,
   },
   loggedMeal: {
     flexDirection: 'row',
