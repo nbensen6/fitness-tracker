@@ -486,24 +486,6 @@ export default function CaloriesScreen() {
               </LinearGradient>
             )}
 
-            {/* Search Section */}
-            <RNView style={styles.searchSection}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search food..."
-                placeholderTextColor="#64748b"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onSubmitEditing={handleSearch}
-                returnKeyType="search"
-              />
-              <TouchableOpacity onPress={handleSearch}>
-                <LinearGradient colors={['#e94560', '#ff6b6b']} style={styles.searchButton}>
-                  <Text style={styles.searchButtonText}>Search</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </RNView>
-
             {/* Meal Type Selector */}
             <RNView style={styles.mealTypeSelector}>
               {mealTypes.map((type) => (
@@ -539,6 +521,24 @@ export default function CaloriesScreen() {
                 <LinearGradient colors={['#f59e0b', '#fbbf24']} style={styles.actionButtonGradient}>
                   <Text style={styles.actionButtonIcon}>📋</Text>
                   <Text style={styles.actionButtonText}>Recipes</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </RNView>
+
+            {/* Search Section */}
+            <RNView style={styles.searchSection}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search food..."
+                placeholderTextColor="#64748b"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={handleSearch}
+                returnKeyType="search"
+              />
+              <TouchableOpacity onPress={handleSearch}>
+                <LinearGradient colors={['#e94560', '#ff6b6b']} style={styles.searchButton}>
+                  <Text style={styles.searchButtonText}>Search</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </RNView>
