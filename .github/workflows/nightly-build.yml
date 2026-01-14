@@ -32,3 +32,6 @@ jobs:
 
       - name: Build iOS and Submit to TestFlight
         run: eas build --platform ios --profile production --auto-submit --non-interactive
+        env:
+          EXPO_APPLE_ID: ${{ secrets.EXPO_APPLE_ID }}
+          EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.EXPO_APPLE_APP_SPECIFIC_PASSWORD }}
