@@ -5,10 +5,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { lookupBarcode, convertToGrams, calculateNutrition } from '@/services/foodApi';
+import { lookupBarcodeWithCommunity, convertToGrams, calculateNutrition } from '@/services/foodApi';
 import { addMealEntry } from '@/services/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { FoodItem, ServingUnit } from '@/types';
+import AddFoodModal from '@/components/AddFoodModal';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -24,15 +25,18 @@ export default function BarcodeScannerScreen() {
   const [scannedFood, setScannedFood] = useState<FoodItem | null>(null);
   const [quantity, setQuantity] = useState('1');
   const [selectedUnit, setSelectedUnit] = useState<ServingUnit>('g');
+  const [showAddFoodModal, setShowAddFoodModal] = useState(false);
+  const [scannedBarcode, setScannedBarcode] = useState<string>('');
 
   const handleBarcodeScanned = async ({ type, data }: { type: string; data: string }) => {
     if (scanned || loading) return;
 
     setScanned(true);
     setLoading(true);
+    setScannedBarcode(data); // Store barcode for AddFoodModal
 
     try {
-      const food = await lookupBarcode(data);
+      const food = await lookupBarcodeWithCommunity(data);
 
       if (food) {
         setScannedFood(food);
@@ -50,9 +54,10 @@ export default function BarcodeScannerScreen() {
       } else {
         Alert.alert(
           'Product Not Found',
-          'This barcode was not found in the database. Try searching for the food manually.',
+          'This barcode was not found. Would you like to add this food to the community database?',
           [
             { text: 'Scan Again', onPress: () => setScanned(false) },
+            { text: 'Add Food', onPress: () => setShowAddFoodModal(true), style: 'default' },
             { text: 'Go Back', onPress: () => router.back() },
           ]
         );
@@ -99,6 +104,19 @@ export default function BarcodeScannerScreen() {
     const qty = parseFloat(quantity) || 0;
     const gramsConsumed = convertToGrams(qty, selectedUnit, scannedFood);
     return calculateNutrition(scannedFood, gramsConsumed);
+  };
+
+  const handleFoodAdded = (food: FoodItem) => {
+    setScannedFood(food);
+    setShowAddFoodModal(false);
+    // Set default quantity/unit
+    if (food.defaultUnit === 'piece' && food.gramsPerCup) {
+      setQuantity('1');
+      setSelectedUnit('piece');
+    } else {
+      setQuantity((food.servingGrams || 100).toString());
+      setSelectedUnit('g');
+    }
   };
 
   if (!permission) {
@@ -338,6 +356,18 @@ export default function BarcodeScannerScreen() {
           </RNView>
         </RNView>
       </CameraView>
+
+      {/* Add Food Modal */}
+      <AddFoodModal
+        visible={showAddFoodModal}
+        onClose={() => {
+          setShowAddFoodModal(false);
+          setScanned(false);
+        }}
+        onFoodAdded={handleFoodAdded}
+        userId={userId || ''}
+        initialBarcode={scannedBarcode}
+      />
     </RNView>
   );
 }

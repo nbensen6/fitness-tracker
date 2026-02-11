@@ -53,6 +53,16 @@ export interface FoodItem {
   gramsPerCup?: number; // grams per cup for this specific food (overrides default 240g)
 }
 
+// Community-submitted food item (extends FoodItem with metadata)
+export interface CommunityFood extends FoodItem {
+  submittedBy: string;        // userId of submitter
+  submittedAt: Date;          // timestamp
+  barcode?: string;           // optional barcode if added from scanner
+  brand?: string;             // optional brand name (e.g., "Aldi", "Appleton Farms")
+  verified: boolean;          // for future moderation
+  useCount: number;           // track popularity for sorting
+}
+
 export interface MealEntry {
   id: string;
   userId: string;
@@ -129,16 +139,20 @@ export interface Workout {
 }
 
 // Workout plans
+export interface PlanExercise {
+  exercise: Exercise;
+  targetSets: number;
+  targetReps: string | number;
+}
+
 export interface WorkoutPlanDay {
   dayNumber: number;
   name: string;
-  exercises: {
-    exercise: Exercise;
-    targetSets: number;
-    targetReps: string;
-  }[];
+  exercises: PlanExercise[];
   isRestDay: boolean;
 }
+
+export type WorkoutDay = WorkoutPlanDay;
 
 export interface WorkoutPlan {
   id: string;

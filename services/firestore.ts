@@ -8,10 +8,11 @@ import {
   query,
   where,
   orderBy,
-  Timestamp
+  Timestamp,
+  increment
 } from 'firebase/firestore';
 import { db } from '../firebase.config';
-import { MealEntry, Workout, UserWorkoutPlan, Recipe } from '../types';
+import { MealEntry, Workout, UserWorkoutPlan, Recipe, CommunityFood, ServingUnit } from '../types';
 
 // Meal entries
 export const addMealEntry = async (userId: string, entry: Omit<MealEntry, 'id' | 'userId' | 'timestamp'>) => {
@@ -83,8 +84,10 @@ export const getMealsForDateRange = async (userId: string, startDate: string, en
 
 // Recipes
 export const addRecipe = async (userId: string, recipe: Omit<Recipe, 'id' | 'userId' | 'createdAt'>) => {
+  // Strip undefined values from nested objects (Firestore rejects undefined)
+  const cleanedRecipe = JSON.parse(JSON.stringify(recipe));
   const docRef = await addDoc(collection(db, 'recipes'), {
-    ...recipe,
+    ...cleanedRecipe,
     userId,
     createdAt: Timestamp.now()
   });
@@ -104,9 +107,10 @@ export const getUserRecipes = async (userId: string): Promise<Recipe[]> => {
   })) as Recipe[];
 
   // Sort client-side to avoid needing a composite index
+  // createdAt may be a Firestore Timestamp or a Date depending on source
   return recipes.sort((a, b) => {
-    const dateA = a.createdAt?.toDate?.() || new Date(0);
-    const dateB = b.createdAt?.toDate?.() || new Date(0);
+    const dateA = (a.createdAt as any)?.toDate?.() || a.createdAt || new Date(0);
+    const dateB = (b.createdAt as any)?.toDate?.() || b.createdAt || new Date(0);
     return dateB.getTime() - dateA.getTime();
   });
 };
@@ -116,7 +120,9 @@ export const deleteRecipe = async (recipeId: string) => {
 };
 
 export const updateRecipe = async (recipeId: string, updates: Partial<Omit<Recipe, 'id' | 'userId' | 'createdAt'>>) => {
-  await updateDoc(doc(db, 'recipes', recipeId), updates);
+  // Strip undefined values from nested objects (Firestore rejects undefined)
+  const cleanedUpdates = JSON.parse(JSON.stringify(updates));
+  await updateDoc(doc(db, 'recipes', recipeId), cleanedUpdates);
 };
 
 // Workouts
@@ -224,4 +230,68 @@ export const deleteCustomPlan = async (planId: string) => {
 
 export const deleteUserWorkoutPlan = async (planId: string) => {
   await deleteDoc(doc(db, 'userPlans', planId));
+};
+
+// Community Foods - shared food database submitted by users
+export const addCommunityFood = async (
+  userId: string,
+  food: {
+    name: string;
+    brand?: string;
+    barcode?: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    servingSize: string;
+    servingGrams: number;
+    defaultUnit: ServingUnit;
+    availableUnits: ServingUnit[];
+  }
+) => {
+  const docRef = await addDoc(collection(db, 'communityFoods'), {
+    ...food,
+    submittedBy: userId,
+    submittedAt: Timestamp.now(),
+    verified: false,
+    useCount: 0
+  });
+  return docRef.id;
+};
+
+export const searchCommunityFoods = async (searchTerm: string): Promise<CommunityFood[]> => {
+  // Firestore doesn't support full-text search, so fetch all and filter client-side
+  const q = query(collection(db, 'communityFoods'));
+  const snapshot = await getDocs(q);
+
+  const lowerSearch = searchTerm.toLowerCase();
+  const foods = snapshot.docs
+    .map(d => ({ id: d.id, ...d.data() } as CommunityFood))
+    .filter(food =>
+      food.name.toLowerCase().includes(lowerSearch) ||
+      food.brand?.toLowerCase().includes(lowerSearch)
+    )
+    .sort((a, b) => b.useCount - a.useCount); // Sort by popularity
+
+  return foods;
+};
+
+export const getCommunityFoodByBarcode = async (barcode: string): Promise<CommunityFood | null> => {
+  const q = query(
+    collection(db, 'communityFoods'),
+    where('barcode', '==', barcode)
+  );
+  const snapshot = await getDocs(q);
+
+  if (snapshot.empty) return null;
+
+  const d = snapshot.docs[0];
+  return { id: d.id, ...d.data() } as CommunityFood;
+};
+
+export const incrementCommunityFoodUseCount = async (foodId: string) => {
+  const foodRef = doc(db, 'communityFoods', foodId);
+  await updateDoc(foodRef, {
+    useCount: increment(1)
+  });
 };

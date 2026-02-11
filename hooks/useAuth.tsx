@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        userId,
+        userId: userId ?? null,
         userProfile,
         loading: !isLoaded || loading,
         isSignedIn: isSignedIn ?? false,

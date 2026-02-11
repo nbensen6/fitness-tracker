@@ -354,7 +354,7 @@ export default function LoginScreen() {
     <ImageBackground
       source={require('@/assets/images/nbensen6_athletic_woman_sitting_on_gym_bench_after_intense_wo_4191ce07-ef1b-43dd-959e-90883191c5d1_3.png')}
       style={styles.backgroundImage}
-      imageStyle={styles.backgroundImagePosition}
+      imageStyle={Platform.select({ web: { objectPosition: 'top center' } as any, default: undefined })}
       resizeMode="cover"
     >
       <RNView style={styles.overlay}>
@@ -635,9 +635,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  backgroundImagePosition: {
-    objectPosition: 'top center',
-  },
+  backgroundImagePosition: {},
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(26, 26, 46, 0.85)',

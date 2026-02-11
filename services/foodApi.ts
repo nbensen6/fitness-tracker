@@ -1,4 +1,5 @@
 import { FoodItem, ServingUnit } from '../types';
+import { searchCommunityFoods, getCommunityFoodByBarcode } from './firestore';
 
 const OPEN_FOOD_FACTS_API = 'https://world.openfoodfacts.org/cgi/search.pl';
 const OPEN_FOOD_FACTS_PRODUCT_API = 'https://world.openfoodfacts.org/api/v0/product';
@@ -1034,4 +1035,65 @@ export const searchCommonFoods = (query: string): FoodItem[] => {
   return commonFoods.filter(food =>
     food.name.toLowerCase().includes(lowerQuery)
   );
+};
+
+// Combined search: community foods first, then common foods, then API
+export const searchAllFoods = async (query: string): Promise<FoodItem[]> => {
+  const results: FoodItem[] = [];
+  const seenIds = new Set<string>();
+
+  // 1. Search community foods FIRST (user-submitted items like "Aldi deli meat")
+  try {
+    const communityResults = await searchCommunityFoods(query);
+    for (const food of communityResults.slice(0, 10)) {
+      if (!seenIds.has(food.id)) {
+        seenIds.add(food.id);
+        results.push(food);
+      }
+    }
+  } catch (error) {
+    console.error('Community search error:', error);
+  }
+
+  // 2. Search local common foods
+  const localResults = searchCommonFoods(query);
+  for (const food of localResults) {
+    if (!seenIds.has(food.id)) {
+      seenIds.add(food.id);
+      results.push(food);
+    }
+  }
+
+  // 3. If still need more results, search Open Food Facts API
+  if (results.length < 10) {
+    try {
+      const apiResults = await searchFoods(query);
+      for (const food of apiResults) {
+        if (!seenIds.has(food.id) && results.length < 25) {
+          seenIds.add(food.id);
+          results.push(food);
+        }
+      }
+    } catch (error) {
+      console.error('API search error:', error);
+    }
+  }
+
+  return results;
+};
+
+// Enhanced barcode lookup: check community DB first, then Open Food Facts
+export const lookupBarcodeWithCommunity = async (barcode: string): Promise<FoodItem | null> => {
+  // 1. Check community foods first (user-submitted barcodes)
+  try {
+    const communityFood = await getCommunityFoodByBarcode(barcode);
+    if (communityFood) {
+      return communityFood;
+    }
+  } catch (error) {
+    console.error('Community barcode lookup error:', error);
+  }
+
+  // 2. Fall back to Open Food Facts
+  return lookupBarcode(barcode);
 };

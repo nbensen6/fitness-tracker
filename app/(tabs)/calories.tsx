@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ImageBackground, View as RNView, Modal, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback, useWindowDimensions, Animated, PanResponder } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/hooks/useAuth';
-import { searchFoods, commonFoods, searchCommonFoods, convertToGrams, calculateNutrition } from '@/services/foodApi';
+import { searchAllFoods, commonFoods, searchCommonFoods, convertToGrams, calculateNutrition } from '@/services/foodApi';
 import { addMealEntry, getMealsByDate, deleteMealEntry, deleteRecipeGroup, deleteMealsByType } from '@/services/firestore';
 import { FoodItem, MealEntry, ServingUnit } from '@/types';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
+import AddFoodModal from '@/components/AddFoodModal';
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -127,6 +128,9 @@ export default function CaloriesScreen() {
   const [quantity, setQuantity] = useState('1');
   const [selectedUnit, setSelectedUnit] = useState<ServingUnit>('g');
 
+  // Add Food modal state
+  const [showAddFoodModal, setShowAddFoodModal] = useState(false);
+
   // History dropdown state
   const [showHistory, setShowHistory] = useState(false);
 
@@ -169,26 +173,24 @@ export default function CaloriesScreen() {
       return;
     }
 
-    // Instantly filter local common foods
+    // Instantly filter local common foods for immediate feedback
     const localResults = searchCommonFoods(searchQuery);
     setSearchResults(localResults.length > 0 ? localResults : []);
 
-    // Debounce API search for when no local results
-    if (localResults.length === 0) {
-      const timeoutId = setTimeout(async () => {
-        setSearching(true);
-        try {
-          const results = await searchFoods(searchQuery);
-          setSearchResults(results.length > 0 ? results : []);
-        } catch (error) {
-          console.error('Search error:', error);
-        } finally {
-          setSearching(false);
-        }
-      }, 500); // Wait 500ms before API call
+    // Debounce combined search (community foods + common foods + API)
+    const timeoutId = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results = await searchAllFoods(searchQuery);
+        setSearchResults(results.length > 0 ? results : []);
+      } catch (error) {
+        console.error('Search error:', error);
+      } finally {
+        setSearching(false);
+      }
+    }, 500); // Wait 500ms before combined search
 
-      return () => clearTimeout(timeoutId);
-    }
+    return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
   const handleSearch = async () => {
@@ -208,6 +210,14 @@ export default function CaloriesScreen() {
     setQuantity('1');
     setSelectedUnit(food.defaultUnit || 'g');
     setShowQuantityModal(true);
+  };
+
+  // Handle when a new food is added via AddFoodModal
+  const handleFoodAdded = (food: FoodItem) => {
+    setShowAddFoodModal(false);
+    setSearchQuery('');
+    setSearchResults([food]); // Show the newly added food
+    openQuantityModal(food);  // Open quantity modal to add immediately
   };
 
   // Calculate preview nutrition based on current quantity/unit
@@ -544,27 +554,42 @@ export default function CaloriesScreen() {
             </RNView>
 
             {/* Search Results - only show when searching */}
-            {searchQuery.trim() && searchResults.length > 0 && (
+            {searchQuery.trim() && (
               <LinearGradient colors={['#2d2d44', '#1f1f2e']} style={styles.section}>
                 <Text style={styles.sectionTitle}>Search Results</Text>
-                {searchResults.slice(0, 8).map((food) => (
-                  <TouchableOpacity
-                    key={food.id}
-                    style={styles.foodItem}
-                    onPress={() => openQuantityModal(food)}
-                  >
-                    <RNView style={styles.foodInfo}>
-                      <Text style={styles.foodName}>{food.name}</Text>
-                      <Text style={styles.foodMacros}>
-                        P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
-                      </Text>
-                    </RNView>
-                    <RNView style={styles.foodCalories}>
-                      <Text style={styles.calorieValue}>{food.calories}</Text>
-                      <Text style={styles.calorieLabel}>cal</Text>
-                    </RNView>
-                  </TouchableOpacity>
-                ))}
+                {searchResults.length > 0 ? (
+                  searchResults.slice(0, 8).map((food) => (
+                    <TouchableOpacity
+                      key={food.id}
+                      style={styles.foodItem}
+                      onPress={() => openQuantityModal(food)}
+                    >
+                      <RNView style={styles.foodInfo}>
+                        <Text style={styles.foodName}>{food.name}</Text>
+                        <Text style={styles.foodMacros}>
+                          P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
+                        </Text>
+                      </RNView>
+                      <RNView style={styles.foodCalories}>
+                        <Text style={styles.calorieValue}>{food.calories}</Text>
+                        <Text style={styles.calorieLabel}>cal</Text>
+                      </RNView>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <RNView style={styles.noResultsContainer}>
+                    <Text style={styles.noResultsText}>
+                      {searching ? 'Searching...' : `No foods found for "${searchQuery}"`}
+                    </Text>
+                    {!searching && (
+                      <TouchableOpacity onPress={() => setShowAddFoodModal(true)}>
+                        <LinearGradient colors={['#4ade80', '#22c55e']} style={styles.addFoodButton}>
+                          <Text style={styles.addFoodButtonText}>+ Add This Food</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    )}
+                  </RNView>
+                )}
               </LinearGradient>
             )}
 
@@ -773,6 +798,15 @@ export default function CaloriesScreen() {
             </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
         </Modal>
+
+        {/* Add Food Modal */}
+        <AddFoodModal
+          visible={showAddFoodModal}
+          onClose={() => setShowAddFoodModal(false)}
+          onFoodAdded={handleFoodAdded}
+          userId={userId || ''}
+          initialName={searchQuery}
+        />
       </RNView>
     </ImageBackground>
   );
@@ -1403,5 +1437,26 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 16,
+  },
+  // No results / Add Food styles
+  noResultsContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  noResultsText: {
+    color: '#64748b',
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  addFoodButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  addFoodButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
